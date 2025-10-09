@@ -5,19 +5,54 @@ import pickle
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 import xgboost as xgb
+import tempfile
+import requests
+import os
 
 # --------------------------
-# Load all artifacts
+# Helper: Download file from GitHub raw URL
+# --------------------------
+def load_file_from_github(url, suffix=""):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+        r = requests.get(url)
+        tmp_file.write(r.content)
+        tmp_path = tmp_file.name
+    return tmp_path
+
+# --------------------------
+# Load all artifacts from GitHub
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    transformer_model = load_model("transformer_model.keras")  # Load .keras Transformer
-    with open("scaler.pkl", "rb") as f:
+    # Replace these URLs with your actual GitHub raw URLs
+    TRANSFORMER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/transformer_model.keras"
+    SCALER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/scaler.pkl"
+    XGB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/xgb_model.pkl"
+    INFO_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/training_info.pkl"
+
+    # Load Transformer
+    transformer_path = load_file_from_github(TRANSFORMER_URL, ".keras")
+    transformer_model = load_model(transformer_path)
+    os.remove(transformer_path)
+
+    # Load scaler
+    scaler_path = load_file_from_github(SCALER_URL, ".pkl")
+    with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
-    with open("xgb_model.pkl", "rb") as f:
+    os.remove(scaler_path)
+
+    # Load XGBoost
+    xgb_path = load_file_from_github(XGB_URL, ".pkl")
+    with open(xgb_path, "rb") as f:
         xgb_model = pickle.load(f)
-    with open("training_info.pkl", "rb") as f:
+    os.remove(xgb_path)
+
+    # Load training info
+    info_path = load_file_from_github(INFO_URL, ".pkl")
+    with open(info_path, "rb") as f:
         info = pickle.load(f)
+    os.remove(info_path)
+
     return transformer_model, scaler, xgb_model, info["training_columns"], info["sequence_length"]
 
 transformer_model, scaler, xgb_model, training_columns, sequence_length = load_artifacts()
@@ -69,19 +104,23 @@ def predict(df):
     X_seq, df_seq = preprocess(df)
     if X_seq.size == 0:
         return np.array([]), df_seq
+
     # Transformer predictions
     transformer_preds = transformer_model.predict(X_seq, verbose=0)
+
     # Prepare XGBoost features
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
 
-    # Ensure all training columns exist and correct order
+    # Ensure all training columns exist
     for col in training_columns:
         if col not in df_xgb.columns:
             df_xgb[col] = 0
+
+    # Keep columns in exact training order
     df_xgb = df_xgb[training_columns]
 
-    # Force numeric type to prevent dtype issues
+    # Force numeric type
     df_xgb = df_xgb.apply(pd.to_numeric, errors='coerce').fillna(0)
 
     final_preds = xgb_model.predict(df_xgb)
