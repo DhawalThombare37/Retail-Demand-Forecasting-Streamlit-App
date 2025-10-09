@@ -62,11 +62,11 @@ class TransformerPredictor:
 # --------------------------
 @st.cache_resource
 def load_model():
-    with open("transformer_predictor.pkl", "rb") as f:
+    with open("xgb_transformer_final.pkl", "rb") as f:
         model = pickle.load(f)
     return model
 
-transformer_predictor = load_model()
+xgb_transformer_final = load_model()
 
 # --------------------------
 # Streamlit App UI
