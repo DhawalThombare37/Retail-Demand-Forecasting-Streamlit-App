@@ -85,7 +85,7 @@ if uploaded_file:
     st.dataframe(df_input.head())
 
     st.info("Running preprocessing and prediction...")
-    preds, df_processed = transformer_predictor.predict(df_input)
+    preds, df_processed = xgb_transformer_final.predict(df_input)
 
     if preds.size > 0:
         df_processed["Predicted_Demand"] = preds
