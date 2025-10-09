@@ -25,7 +25,7 @@ def load_file_from_github(url, suffix=""):
 @st.cache_resource
 def load_artifacts():
     # REPLACE these URLs with your GitHub raw URLs
-    TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
+ TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
     SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
     XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
     INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
@@ -35,7 +35,7 @@ def load_artifacts():
     try:
         transformer_model = load_model(transformer_path)
     except Exception:
-        # Try .h5 fallback
+        # fallback for .h5
         transformer_model = load_model(transformer_path.replace(".keras", ".h5"))
     os.remove(transformer_path)
 
@@ -116,12 +116,10 @@ def predict(df):
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
 
-    # Ensure all columns exist
+    # Ensure all columns exist and reorder
     for col in training_columns:
         if col not in df_xgb.columns:
             df_xgb[col] = 0
-
-    # Reorder exactly as training
     df_xgb = df_xgb[training_columns]
 
     # Force numeric type
