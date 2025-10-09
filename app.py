@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
+from tensorflow.keras.models import load_model
 import xgboost as xgb
 import tempfile
 import requests
@@ -24,30 +24,34 @@ def load_file_from_github(url, suffix=""):
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    # Replace these URLs with your actual GitHub raw URLs
+    # REPLACE these URLs with your GitHub raw URLs
     TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
     SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
     XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
     INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
 
-    # Load Transformer
+    # Transformer
     transformer_path = load_file_from_github(TRANSFORMER_URL, ".keras")
-    transformer_model = load_model(transformer_path)
+    try:
+        transformer_model = load_model(transformer_path)
+    except Exception:
+        # Try .h5 fallback
+        transformer_model = load_model(transformer_path.replace(".keras", ".h5"))
     os.remove(transformer_path)
 
-    # Load scaler
+    # Scaler
     scaler_path = load_file_from_github(SCALER_URL, ".pkl")
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
     os.remove(scaler_path)
 
-    # Load XGBoost
+    # XGBoost
     xgb_path = load_file_from_github(XGB_URL, ".pkl")
     with open(xgb_path, "rb") as f:
         xgb_model = pickle.load(f)
     os.remove(xgb_path)
 
-    # Load training info
+    # Training info
     info_path = load_file_from_github(INFO_URL, ".pkl")
     with open(info_path, "rb") as f:
         info = pickle.load(f)
@@ -89,7 +93,7 @@ def preprocess(df):
     features_to_use = [c for c in df.columns if c not in ['Date', 'Demand Forecast', 'Store ID', 'Product ID', 'Category', 'Region', 'Weather Condition', 'Seasonality']]
     df_processed = pd.get_dummies(df[features_to_use])
 
-    # Align with training columns
+    # Ensure training columns exist and in exact order
     for col in training_columns:
         if col not in df_processed.columns:
             df_processed[col] = 0
@@ -108,16 +112,16 @@ def predict(df):
     # Transformer predictions
     transformer_preds = transformer_model.predict(X_seq, verbose=0)
 
-    # Prepare XGBoost features
+    # XGBoost input
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
 
-    # Ensure all training columns exist
+    # Ensure all columns exist
     for col in training_columns:
         if col not in df_xgb.columns:
             df_xgb[col] = 0
 
-    # Keep columns in exact training order
+    # Reorder exactly as training
     df_xgb = df_xgb[training_columns]
 
     # Force numeric type
