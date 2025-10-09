@@ -3,11 +3,13 @@ import pandas as pd
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
-import xgboost as xgb
-import tempfile
 import requests
+import tempfile
 import os
+
+from tensorflow.keras.models import load_model
+from tensorflow.keras.layers import MultiHeadAttention, LayerNormalization, Add, GlobalAveragePooling1D
+import xgboost as xgb
 
 # --------------------------
 # Helper: Download file from GitHub raw URL
@@ -20,38 +22,40 @@ def load_file_from_github(url, suffix=""):
     return tmp_path
 
 # --------------------------
-# Load all artifacts from GitHub
+# Load all artifacts
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    # REPLACE these URLs with your GitHub raw URLs
-    TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.h5"
-    SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
-    XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
-    INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
+    # Replace these URLs with your GitHub raw URLs
+    TRANSFORMER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/transformer_model.h5"
+    SCALER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/scaler.pkl"
+    XGB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/xgb_model.pkl"
+    INFO_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/training_info.pkl"
 
-    # Transformer
+    # Load Transformer with custom_objects
     transformer_path = load_file_from_github(TRANSFORMER_URL, ".h5")
-    try:
-        transformer_model = load_model(transformer_path)
-    except Exception:
-        # fallback for .h5
-        transformer_model = load_model(transformer_path.replace(".keras", ".h5"))
+    custom_objects = {
+        "MultiHeadAttention": MultiHeadAttention,
+        "LayerNormalization": LayerNormalization,
+        "Add": Add,
+        "GlobalAveragePooling1D": GlobalAveragePooling1D
+    }
+    transformer_model = load_model(transformer_path, custom_objects=custom_objects)
     os.remove(transformer_path)
 
-    # Scaler
+    # Load scaler
     scaler_path = load_file_from_github(SCALER_URL, ".pkl")
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
     os.remove(scaler_path)
 
-    # XGBoost
+    # Load XGBoost
     xgb_path = load_file_from_github(XGB_URL, ".pkl")
     with open(xgb_path, "rb") as f:
         xgb_model = pickle.load(f)
     os.remove(xgb_path)
 
-    # Training info
+    # Load training info
     info_path = load_file_from_github(INFO_URL, ".pkl")
     with open(info_path, "rb") as f:
         info = pickle.load(f)
