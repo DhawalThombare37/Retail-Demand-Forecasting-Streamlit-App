@@ -27,7 +27,7 @@ transformer_model, scaler, xgb_model, training_columns, sequence_length = load_a
 # --------------------------
 def create_sequences(X, seq_len):
     sequences = []
-    for i in range(len(X) - seq_len + 1):
+    for i in range(len(X) - seq_len):
         sequences.append(X[i:(i + seq_len)])
     return np.array(sequences)
 
@@ -35,6 +35,7 @@ def preprocess(df):
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.sort_values('Date').reset_index(drop=True)
 
+    # Same feature engineering as training
     df['year'] = df['Date'].dt.year
     df['month'] = df['Date'].dt.month
     df['day'] = df['Date'].dt.day
@@ -52,6 +53,8 @@ def preprocess(df):
 
     features_to_use = [c for c in df.columns if c not in ['Date', 'Demand Forecast', 'Store ID', 'Product ID', 'Category', 'Region', 'Weather Condition', 'Seasonality']]
     df_processed = pd.get_dummies(df[features_to_use])
+
+    # Align with training columns exactly
     for col in training_columns:
         if col not in df_processed.columns:
             df_processed[col] = 0
@@ -59,14 +62,16 @@ def preprocess(df):
 
     X_scaled = scaler.transform(df_processed)
     X_seq = create_sequences(X_scaled, sequence_length)
-    df_seq = df.iloc[sequence_length-1:].reset_index(drop=True)
+    df_seq = df.iloc[sequence_length:].reset_index(drop=True)
     return X_seq, df_seq
 
 def predict(df):
     X_seq, df_seq = preprocess(df)
     if X_seq.size == 0:
         return np.array([]), df_seq
+    # Transformer predictions
     transformer_preds = transformer_model.predict(X_seq, verbose=0)
+    # Align XGBoost features exactly
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
     final_preds = xgb_model.predict(df_xgb)
