@@ -11,7 +11,7 @@ import xgboost as xgb
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    transformer_model = load_model("transformer_model.keras")  # Load .keras file
+    transformer_model = load_model("transformer_model.keras")  # Load .keras Transformer
     with open("scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
     with open("xgb_model.pkl", "rb") as f:
@@ -35,7 +35,7 @@ def preprocess(df):
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.sort_values('Date').reset_index(drop=True)
 
-    # Same feature engineering as training
+    # Feature engineering
     df['year'] = df['Date'].dt.year
     df['month'] = df['Date'].dt.month
     df['day'] = df['Date'].dt.day
@@ -54,7 +54,7 @@ def preprocess(df):
     features_to_use = [c for c in df.columns if c not in ['Date', 'Demand Forecast', 'Store ID', 'Product ID', 'Category', 'Region', 'Weather Condition', 'Seasonality']]
     df_processed = pd.get_dummies(df[features_to_use])
 
-    # Align with training columns exactly
+    # Align with training columns
     for col in training_columns:
         if col not in df_processed.columns:
             df_processed[col] = 0
@@ -71,9 +71,19 @@ def predict(df):
         return np.array([]), df_seq
     # Transformer predictions
     transformer_preds = transformer_model.predict(X_seq, verbose=0)
-    # Align XGBoost features exactly
+    # Prepare XGBoost features
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
+
+    # Ensure all training columns exist and correct order
+    for col in training_columns:
+        if col not in df_xgb.columns:
+            df_xgb[col] = 0
+    df_xgb = df_xgb[training_columns]
+
+    # Force numeric type to prevent dtype issues
+    df_xgb = df_xgb.apply(pd.to_numeric, errors='coerce').fillna(0)
+
     final_preds = xgb_model.predict(df_xgb)
     return final_preds, df_seq
 
