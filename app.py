@@ -3,20 +3,20 @@ import pandas as pd
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-import requests
-import tempfile
 import os
+import tempfile
+import requests
 
 from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import MultiHeadAttention, LayerNormalization, Add, GlobalAveragePooling1D
 import xgboost as xgb
 
 # --------------------------
-# Helper: Download file from GitHub raw URL
+# Helper: Download files from GitHub raw URLs
 # --------------------------
 def load_file_from_github(url, suffix=""):
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
         r = requests.get(url)
+        r.raise_for_status()  # Ensure download success
         tmp_file.write(r.content)
         tmp_path = tmp_file.name
     return tmp_path
@@ -26,37 +26,31 @@ def load_file_from_github(url, suffix=""):
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    # Replace these URLs with your GitHub raw URLs
+    # Replace these with your GitHub raw URLs
     TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
     SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
     XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
     INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
 
-    # Load Transformer with custom_objects
-    transformer_path = load_file_from_github(TRANSFORMER_URL, ".h5")
-    custom_objects = {
-        "MultiHeadAttention": MultiHeadAttention,
-        "LayerNormalization": LayerNormalization,
-        "Add": Add,
-        "GlobalAveragePooling1D": GlobalAveragePooling1D
-    }
-    transformer_model = load_model(transformer_path, custom_objects=custom_objects)
+    # Transformer model
+    transformer_path = load_file_from_github(TRANSFORMER_URL)
+    transformer_model = load_model(transformer_path)
     os.remove(transformer_path)
 
-    # Load scaler
-    scaler_path = load_file_from_github(SCALER_URL, ".pkl")
+    # Scaler
+    scaler_path = load_file_from_github(SCALER_URL)
     with open(scaler_path, "rb") as f:
         scaler = pickle.load(f)
     os.remove(scaler_path)
 
-    # Load XGBoost
-    xgb_path = load_file_from_github(XGB_URL, ".pkl")
+    # XGBoost
+    xgb_path = load_file_from_github(XGB_URL)
     with open(xgb_path, "rb") as f:
         xgb_model = pickle.load(f)
     os.remove(xgb_path)
 
-    # Load training info
-    info_path = load_file_from_github(INFO_URL, ".pkl")
+    # Training info
+    info_path = load_file_from_github(INFO_URL)
     with open(info_path, "rb") as f:
         info = pickle.load(f)
     os.remove(info_path)
@@ -66,7 +60,7 @@ def load_artifacts():
 transformer_model, scaler, xgb_model, training_columns, sequence_length = load_artifacts()
 
 # --------------------------
-# Helper functions
+# Preprocessing functions
 # --------------------------
 def create_sequences(X, seq_len):
     sequences = []
@@ -120,14 +114,11 @@ def predict(df):
     df_xgb = df_seq.copy()
     df_xgb['transformer_preds'] = transformer_preds
 
-    # Ensure all columns exist and reorder
+    # Ensure numeric and align columns
     for col in training_columns:
         if col not in df_xgb.columns:
             df_xgb[col] = 0
-    df_xgb = df_xgb[training_columns]
-
-    # Force numeric type
-    df_xgb = df_xgb.apply(pd.to_numeric, errors='coerce').fillna(0)
+    df_xgb = df_xgb[training_columns].apply(pd.to_numeric, errors='coerce').fillna(0)
 
     final_preds = xgb_model.predict(df_xgb)
     return final_preds, df_seq
