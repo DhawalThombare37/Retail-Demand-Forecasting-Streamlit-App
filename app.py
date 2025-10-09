@@ -25,10 +25,10 @@ def load_file_from_github(url, suffix=""):
 @st.cache_resource
 def load_artifacts():
     # Replace these URLs with your actual GitHub raw URLs
-    TRANSFORMER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/transformer_model.keras"
-    SCALER_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/scaler.pkl"
-    XGB_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/xgb_model.pkl"
-    INFO_URL = "https://raw.githubusercontent.com/<username>/<repo>/main/training_info.pkl"
+    TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
+    SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
+    XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
+    INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
 
     # Load Transformer
     transformer_path = load_file_from_github(TRANSFORMER_URL, ".keras")
