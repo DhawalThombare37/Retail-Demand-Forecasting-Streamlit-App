@@ -25,13 +25,13 @@ def load_file_from_github(url, suffix=""):
 @st.cache_resource
 def load_artifacts():
     # REPLACE these URLs with your GitHub raw URLs
-    TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.keras"
+    TRANSFORMER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/transformer_model.h5"
     SCALER_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/scaler.pkl"
     XGB_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/xgb_model.pkl"
     INFO_URL = "https://raw.githubusercontent.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App/main/training_info.pkl"
 
     # Transformer
-    transformer_path = load_file_from_github(TRANSFORMER_URL, ".keras")
+    transformer_path = load_file_from_github(TRANSFORMER_URL, ".h5")
     try:
         transformer_model = load_model(transformer_path)
     except Exception:
