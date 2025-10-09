@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-import tensorflow as tf
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 import xgboost as xgb
@@ -12,7 +11,7 @@ import xgboost as xgb
 # --------------------------
 @st.cache_resource
 def load_artifacts():
-    transformer_model = load_model("transformer_model")  # TensorFlow SavedModel
+    transformer_model = load_model("transformer_model.keras")  # Load .keras file
     with open("scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
     with open("xgb_model.pkl", "rb") as f:
@@ -24,7 +23,7 @@ def load_artifacts():
 transformer_model, scaler, xgb_model, training_columns, sequence_length = load_artifacts()
 
 # --------------------------
-# Prediction Function
+# Helper functions
 # --------------------------
 def create_sequences(X, seq_len):
     sequences = []
