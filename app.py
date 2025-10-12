@@ -12,18 +12,79 @@ st.markdown("**Transformer + XGBoost Ensemble | Expected MAPE: ~3%**")
 # Load models
 @st.cache_resource
 def load_models():
+    import os
+    import urllib.request
+    
+    # Check if files exist locally
+    required_files = {
+        'transformer_model.keras': 'Transformer Model',
+        'xgb_model.pkl': 'XGBoost Model',
+        'scaler.pkl': 'Scaler',
+        'training_columns.pkl': 'Training Columns',
+        'xgb_columns.pkl': 'XGBoost Columns',
+        'sequence_length.pkl': 'Sequence Length'
+    }
+    
+    st.info("🔍 Checking for model files...")
+    
+    # Debug: Show current directory
+    current_files = os.listdir(".")
+    st.write(f"**Files in current directory ({len(current_files)}):**")
+    st.code("\n".join(sorted(current_files)))
+    
+    # Check each file
+    missing_files = []
+    file_sizes = {}
+    for file, name in required_files.items():
+        if os.path.exists(file):
+            size = os.path.getsize(file)
+            file_sizes[file] = size
+            st.success(f"✅ {name}: {file} ({size/1024/1024:.2f} MB)")
+        else:
+            missing_files.append(file)
+            st.error(f"❌ {name}: {file} - NOT FOUND")
+    
+    if missing_files:
+        st.error(f"**Missing {len(missing_files)} file(s):**")
+        for f in missing_files:
+            st.write(f"- {f}")
+        st.info("""
+        **Solutions:**
+        1. **If transformer_model.keras > 100MB:** Use Git LFS
+           ```bash
+           git lfs install
+           git lfs track "*.keras"
+           git add .gitattributes
+           git add transformer_model.keras
+           git commit -m "Add large model file"
+           git push
+           ```
+        
+        2. **Alternative:** Upload to Google Drive/Dropbox and download in app
+        
+        3. **Check:** Files are committed and pushed to GitHub
+        """)
+        return None, None, None, None, None, None
+    
     try:
+        st.info("📦 Loading models...")
         transformer = tf.keras.models.load_model("transformer_model.keras")
+        st.success("✅ Transformer loaded")
+        
         xgb = joblib.load("xgb_model.pkl")
+        st.success("✅ XGBoost loaded")
+        
         scaler = joblib.load("scaler.pkl")
         training_cols = joblib.load("training_columns.pkl")
         xgb_cols = joblib.load("xgb_columns.pkl")
         seq_len = joblib.load("sequence_length.pkl")
         
-        st.success(f"✅ Models loaded | Train features: {len(training_cols)} | XGB features: {len(xgb_cols)}")
+        st.success(f"✅ All models loaded! Train: {len(training_cols)} | XGB: {len(xgb_cols)} | Seq: {seq_len}")
         return transformer, xgb, scaler, training_cols, xgb_cols, seq_len
+        
     except Exception as e:
         st.error(f"❌ Error loading models: {e}")
+        st.exception(e)
         return None, None, None, None, None, None
 
 transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
