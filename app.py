@@ -62,11 +62,11 @@ class TransformerPredictor:
 
         df = df.fillna(0)
 
-        # One-hot encoding
+        # One-hot encoding for categorical features
         features_to_encode = ['Discount', 'Holiday/Promotion']
         df_processed = pd.get_dummies(df, columns=features_to_encode)
 
-        # Ensure all training columns exist and are in order
+        # Ensure all training columns exist and in correct order
         for col in self.training_columns:
             if col not in df_processed.columns:
                 df_processed[col] = 0
@@ -92,9 +92,6 @@ class TransformerPredictor:
         df_aligned['transformer_preds'] = transformer_preds.flatten()
 
         # Prepare X for XGBoost
-        for col in self.training_columns:
-            if col not in df_aligned.columns:
-                df_aligned[col] = 0
         X_xgb = df_aligned[self.training_columns]
 
         # XGBoost predictions
