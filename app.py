@@ -73,19 +73,32 @@ class TransformerPredictor:
         return np.array(X_seq), df.iloc[self.sequence_length-1:].reset_index(drop=True)
 
     def predict(self, df):
-        X_seq, df_aligned = self.preprocess(df)
-        if X_seq.size == 0:
-            return np.array([]), df_aligned
+    X_seq, df_aligned = self.preprocess(df)
+    if X_seq.size == 0:
+        return np.array([]), df_aligned
 
-        # Transformer predictions
-        transformer_preds = self.model.predict(X_seq).flatten()
+    # Transformer predictions
+    transformer_preds = self.model.predict(X_seq).flatten()
 
-        # Prepare for XGBoost
-        df_xgb = df_aligned.copy()
-        df_xgb['transformer_preds'] = transformer_preds
-        final_preds = self.xgb_model.predict(df_xgb)
+    # Prepare XGBoost input
+    df_xgb = df_aligned.copy()
+    df_xgb['transformer_preds'] = transformer_preds
 
-        return final_preds, df_aligned
+    # Ensure all columns are numeric
+    for col in df_xgb.columns:
+        df_xgb[col] = pd.to_numeric(df_xgb[col], errors='coerce').fillna(0)
+
+    # Align columns exactly with training
+    missing_cols = [col for col in self.xgb_model.get_booster().feature_names if col not in df_xgb.columns]
+    for col in missing_cols:
+        df_xgb[col] = 0
+    df_xgb = df_xgb[self.xgb_model.get_booster().feature_names]
+
+    # Predict
+    final_preds = self.xgb_model.predict(df_xgb)
+
+    return final_preds, df_aligned
+
 
 # --- Streamlit UI ---
 st.title("Retail Demand Forecasting App (Exact Colab MAPE)")
