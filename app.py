@@ -2,10 +2,8 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import pickle
-import joblib
 from tensorflow.keras.models import load_model
 from sklearn.metrics import mean_absolute_percentage_error
-from sklearn.preprocessing import MinMaxScaler
 
 # --- Load artifacts ---
 @st.cache_data
@@ -38,41 +36,50 @@ def create_lags_rolls(df):
 def preprocess(df):
     df['Date'] = pd.to_datetime(df['Date'])
     df = create_lags_rolls(df)
-    # Select features and one-hot encode
-    features_to_use = [col for col in df.columns if col not in ['Date','Demand Forecast','Store ID','Product ID','Category','Region','Weather Condition','Seasonality']]
-    df_proc = pd.get_dummies(df[features_to_use], columns=['Discount','Holiday/Promotion'])
-    # Align columns with training
-    for col in training_columns:
-        if col not in df_proc.columns:
-            df_proc[col] = 0
-    df_proc = df_proc[training_columns]
-    X_scaled = scaler.transform(df_proc)
-    # Create sequences
+    
+    # select numerical features only for XGBoost
+    features_to_use = [col for col in df.columns if col not in ['Date','Store ID','Product ID','Category','Region','Weather Condition','Seasonality','Demand Forecast']]
+    
+    # scale features
+    df_scaled = scaler.transform(df[features_to_use])
+    df_scaled = pd.DataFrame(df_scaled, columns=features_to_use)
+    
+    # create sequences for transformer
     X_seq = []
-    for i in range(len(X_scaled) - sequence_length + 1):
-        X_seq.append(X_scaled[i:i+sequence_length])
-    return np.array(X_seq), df.iloc[sequence_length-1:].reset_index(drop=True)
+    for i in range(len(df_scaled) - sequence_length + 1):
+        X_seq.append(df_scaled.iloc[i:i+sequence_length].values)
+    return np.array(X_seq), df.iloc[sequence_length-1:].reset_index(drop=True), df_scaled
 
 # --- Streamlit UI ---
 st.title("Retail Demand Forecasting (Transformer + XGBoost)")
-uploaded_file = st.file_uploader("Upload CSV with required columns", type=["csv"])
+
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
 if uploaded_file:
     df_input = pd.read_csv(uploaded_file)
     if df_input.empty:
         st.warning("Uploaded file is empty!")
     else:
-        X_seq, df_aligned = preprocess(df_input)
+        X_seq, df_aligned, df_scaled = preprocess(df_input)
         if X_seq.size == 0:
             st.warning("Not enough rows to form sequences for prediction.")
         else:
             # Transformer predictions
             transformer_preds = transformer_model.predict(X_seq).flatten()
-            # Combine with XGBoost
-            df_xgb_input = df_aligned.copy()
+            
+            # Prepare XGBoost input: keep only training columns in correct order
+            df_xgb_input = df_scaled.iloc[sequence_length-1:].copy()
             df_xgb_input['transformer_pred'] = transformer_preds
+            # Ensure columns match training columns exactly
+            for col in training_columns:
+                if col not in df_xgb_input.columns:
+                    df_xgb_input[col] = 0
+            df_xgb_input = df_xgb_input[training_columns]
+            
+            # XGBoost predictions
             final_preds = xgb_model.predict(df_xgb_input)
             df_aligned['Predicted Demand'] = final_preds
+            
             st.write(df_aligned[['Date','Store ID','Product ID','Category','Region','Predicted Demand']])
             
             # Calculate MAPE if Demand Forecast exists
