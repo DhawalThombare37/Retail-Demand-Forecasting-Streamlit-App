@@ -10,7 +10,7 @@ import streamlit as st
 
 @st.cache_resource
 def load_models():
-    # Load Transformer model (Keras format)
+    # Load Transformer model
     transformer_model = load_model("transformer_model.keras")
     
     # Load XGBoost model
@@ -19,8 +19,9 @@ def load_models():
     # Load scaler
     scaler = joblib.load("scaler.pkl")
     
-    # Load training columns
+    # Load training columns and ensure it's a list
     training_columns = joblib.load("training_info.pkl")
+    training_columns = list(training_columns)
     
     # Sequence length used in training
     sequence_length = 7
