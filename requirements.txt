@@ -1,7 +1,11 @@
 streamlit
 pandas
 numpy
-tensorflow
-xgboost
 scikit-learn
+xgboost
+lightgbm
+tensorflow
+matplotlib
+seaborn
+statsmodels
 joblib
