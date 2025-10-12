@@ -81,23 +81,34 @@ class TransformerPredictor:
         return np.array(X_seq), df.iloc[self.sequence_length-1:].reset_index(drop=True)
 
     def predict(self, df):
-        X_seq, df_aligned = self.preprocess(df)
-        transformer_preds = self.transformer_model.predict(X_seq)
-        df_aligned['transformer_preds'] = transformer_preds.flatten()
+    X_seq, df_aligned = self.preprocess(df)
+    if X_seq.size == 0:
+        st.error("Not enough rows to form sequences. Upload more data.")
+        return df, None
 
-        # XGBoost uses the same training columns
-        final_preds = self.xgb_model.predict(df_aligned[self.training_columns])
-        df_aligned['Predicted Demand'] = final_preds
+    transformer_preds = self.transformer_model.predict(X_seq)
+    df_aligned['transformer_preds'] = transformer_preds.flatten()
 
-        # Calculate MAPE
-        if 'Demand Forecast' in df_aligned.columns:
-            epsilon = 1e-8
-            y_true = df_aligned['Demand Forecast'].replace(0, epsilon)
-            mape = mean_absolute_percentage_error(y_true, final_preds)
-        else:
-            mape = None
+    # Ensure all training columns exist
+    for col in self.training_columns:
+        if col not in df_aligned.columns:
+            df_aligned[col] = 0
+    df_aligned = df_aligned[self.training_columns]
 
-        return df_aligned, mape
+    # Predict with XGBoost
+    final_preds = self.xgb_model.predict(df_aligned)
+    df_aligned['Predicted Demand'] = final_preds
+
+    # Calculate MAPE
+    if 'Demand Forecast' in df.columns:
+        epsilon = 1e-8
+        y_true = df_aligned['Demand Forecast'].replace(0, epsilon) if 'Demand Forecast' in df_aligned.columns else df['Demand Forecast']
+        mape = mean_absolute_percentage_error(y_true, final_preds)
+    else:
+        mape = None
+
+    return df_aligned, mape
+
 
 predictor = TransformerPredictor(transformer_model, xgb_model, scaler, training_columns, sequence_length)
 
