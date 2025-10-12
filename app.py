@@ -139,6 +139,12 @@ class Predictor:
         return np.array(X_seq), np.array(y_seq)
     
     def predict(self, df_input):
+        # Split into train/test like Colab (last 3 months for test)
+        test_date = pd.to_datetime(df_input['Date']).max() - pd.DateOffset(months=3)
+        
+        st.info(f"📅 Using last 3 months as test set (from {test_date.date()} onwards)")
+        st.info(f"⚠️ Model was trained on last 3 months only!")
+        
         X, y, df_orig = self.preprocess(df_input)
         
         st.write("---")
