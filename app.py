@@ -10,15 +10,20 @@ import tensorflow as tf
 
 st.set_page_config(page_title="Retail Demand Forecasting", layout="wide")
 
-# --- Load Models and Scaler ---
+import joblib
+import tensorflow as tf
+import pickle
+
 @st.cache_resource
 def load_models():
-    transformer_model = tf.keras.models.load_model("transformer_model.keras")  # Your trained Transformer
-    xgb_model = joblib.load("xgb_model.pkl")  # Trained XGBoost
-    scaler = joblib.load("scaler.pkl")        # Trained MinMaxScaler
-    training_columns = joblib.load("training_columns.pkl")  # List of training columns
-    sequence_length = 7  # Same as used in training
+    transformer_model = tf.keras.models.load_model("transformer_model.keras")
+    xgb_model = joblib.load("xgb_model.pkl")
+    scaler = joblib.load("scaler.pkl")
+    with open("training_columns.pkl", "rb") as f:
+        training_columns = pickle.load(f)
+    sequence_length = 7  # Same as used in Colab
     return transformer_model, xgb_model, scaler, training_columns, sequence_length
+
 
 transformer_model, xgb_model, scaler, training_columns, sequence_length = load_models()
 
