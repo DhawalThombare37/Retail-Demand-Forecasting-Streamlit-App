@@ -1,8 +1,8 @@
 streamlit
 pandas
 numpy
-matplotlib
-scikit-learn
-xgboost
-lightgbm
 tensorflow
+xgboost
+scikit-learn
+joblib
+pickle5
