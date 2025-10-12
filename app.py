@@ -80,34 +80,39 @@ class TransformerPredictor:
         df_aligned = df.iloc[self.sequence_length-1:].reset_index(drop=True)
         return X_seq, df_aligned
 
-    def predict(self, df):
-        X_seq, df_aligned = self.preprocess(df)
-        if X_seq.size == 0:
-            return pd.DataFrame(), 0.0
+   def predict(self, df):
+    X_seq, df_aligned = self.preprocess(df)
+    if X_seq.size == 0:
+        return pd.DataFrame(), 0.0
 
-        # Transformer predictions
-        transformer_preds = self.transformer_model.predict(X_seq).flatten()
+    # Transformer predictions
+    transformer_preds = self.transformer_model.predict(X_seq).flatten()
 
-        # Prepare XGB input
-        X_xgb = df_aligned.copy()
-        X_xgb['transformer_preds'] = transformer_preds
-        # Ensure all training columns are present
-        for col in self.training_columns:
-            if col not in X_xgb.columns:
-                X_xgb[col] = 0
-        X_xgb = X_xgb[self.training_columns]
+    # Prepare XGB input
+    X_xgb = df_aligned.copy()
+    X_xgb['transformer_preds'] = transformer_preds
 
-        # Final XGB predictions
-        final_preds = self.xgb_model.predict(X_xgb)
-        df_results = df_aligned.copy()
-        df_results['Predicted Demand'] = final_preds
+    # Ensure all training columns exist
+    for col in self.training_columns:
+        if col not in X_xgb.columns:
+            X_xgb[col] = 0
 
-        # Calculate MAPE
-        y_true = df_results['Demand Forecast'].values
-        epsilon = 1e-8
-        y_true_safe = np.where(y_true==0, epsilon, y_true)
-        mape = mean_absolute_percentage_error(y_true_safe, final_preds) * 100
-        return df_results, mape
+    # Reorder columns exactly as in training_columns
+    X_xgb = X_xgb[self.training_columns]
+
+    # Final XGB predictions
+    final_preds = self.xgb_model.predict(X_xgb)
+    df_results = df_aligned.copy()
+    df_results['Predicted Demand'] = final_preds
+
+    # Compute MAPE
+    y_true = df_results['Demand Forecast'].values
+    epsilon = 1e-8
+    y_true_safe = np.where(y_true == 0, epsilon, y_true)
+    mape = mean_absolute_percentage_error(y_true_safe, final_preds) * 100
+
+    return df_results, mape
+
 
 # --- Streamlit UI ---
 st.title("Retail Demand Forecasting (Transformer + XGBoost)")
