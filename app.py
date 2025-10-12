@@ -1,37 +1,28 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 from sklearn.metrics import mean_absolute_percentage_error
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tensorflow as tf
 
-import joblib
-from tensorflow.keras.models import load_model
-import streamlit as st
+st.set_page_config(page_title="Retail Demand Forecasting", layout="wide")
 
+# --- Load Models and Scaler ---
 @st.cache_resource
 def load_models():
-    # Load Transformer model
-    transformer_model = load_model("transformer_model.keras")
-    
-    # Load XGBoost model
-    xgb_model = joblib.load("xgb_model.pkl")
-    
-    # Load scaler
-    scaler = joblib.load("scaler.pkl")
-    
-    # Load training columns and ensure it's a list
-    training_columns = joblib.load("training_info.pkl")
-    training_columns = list(training_columns)
-    
-    # Sequence length used in training
-    sequence_length = 7
-    
+    transformer_model = tf.keras.models.load_model("transformer_model.keras")  # Your trained Transformer
+    xgb_model = joblib.load("xgb_model.pkl")  # Trained XGBoost
+    scaler = joblib.load("scaler.pkl")        # Trained MinMaxScaler
+    training_columns = joblib.load("training_columns.pkl")  # List of training columns
+    sequence_length = 7  # Same as used in training
     return transformer_model, xgb_model, scaler, training_columns, sequence_length
-
 
 transformer_model, xgb_model, scaler, training_columns, sequence_length = load_models()
 
-
+# --- Define Predictor Class ---
 class TransformerPredictor:
     def __init__(self, transformer_model, xgb_model, scaler, training_columns, sequence_length):
         self.transformer_model = transformer_model
@@ -72,34 +63,32 @@ class TransformerPredictor:
 
         df = df.fillna(0)
 
-        # Select features to process
+        # Features for model
         features_to_process = [c for c in df.columns if c not in ['Date', 'Demand Forecast', 'Store ID', 'Product ID', 'Category', 'Region', 'Weather Condition', 'Seasonality']]
         df_processed = pd.get_dummies(df[features_to_process], columns=['Discount', 'Holiday/Promotion'])
 
-        # Align columns exactly as training
+        # Align columns
         for col in self.training_columns:
             if col not in df_processed.columns:
                 df_processed[col] = 0
         df_processed = df_processed[self.training_columns]
 
-        # Convert all to float for scaler
         df_processed = df_processed.astype(float)
 
-        # Scale features
+        # Scale
         X_scaled = self.scaler.transform(df_processed)
 
         # Create sequences
-        X_sequences = []
+        X_seq = []
         for i in range(len(X_scaled) - self.sequence_length + 1):
-            X_sequences.append(X_scaled[i:(i + self.sequence_length)])
-        
-        if not X_sequences:
+            X_seq.append(X_scaled[i:(i + self.sequence_length)])
+
+        if not X_seq:
             return np.array([]), df.iloc[self.sequence_length - 1:]
         else:
-            return np.array(X_sequences), df.iloc[self.sequence_length - 1:].reset_index(drop=True)
+            return np.array(X_seq), df.iloc[self.sequence_length - 1:].reset_index(drop=True)
 
     def predict(self, df):
-        # Preprocess
         X_seq, df_aligned = self.preprocess(df)
         if X_seq.size == 0:
             return np.array([]), df_aligned
@@ -107,18 +96,57 @@ class TransformerPredictor:
         # Transformer predictions
         transformer_preds = self.transformer_model.predict(X_seq)
 
-        # Align Transformer predictions with XGBoost input
+        # Align with XGBoost
         X_xgb = df_aligned.copy()
         X_xgb['transformer_predictions_scaled'] = transformer_preds.flatten()
 
-        # Ensure XGBoost sees same columns as training
+        # Ensure same columns for XGBoost
         xgb_input_cols = self.xgb_model.get_booster().feature_names
-        missing_cols = set(xgb_input_cols) - set(X_xgb.columns)
-        for col in missing_cols:
+        for col in set(xgb_input_cols) - set(X_xgb.columns):
             X_xgb[col] = 0
         X_xgb = X_xgb[xgb_input_cols]
 
-        # XGBoost predictions
         final_preds = self.xgb_model.predict(X_xgb)
-
         return final_preds, df_aligned
+
+predictor = TransformerPredictor(transformer_model, xgb_model, scaler, training_columns, sequence_length)
+
+# --- Streamlit UI ---
+st.title("Retail Demand Forecasting (Transformer + XGBoost)")
+
+uploaded_file = st.file_uploader("Upload retail_store_inventory CSV", type=["csv"])
+
+if uploaded_file is not None:
+    df_input = pd.read_csv(uploaded_file)
+    st.write("Preview of uploaded data:")
+    st.dataframe(df_input.head())
+
+    with st.spinner("Predicting demand..."):
+        preds, df_aligned = predictor.predict(df_input)
+
+    if preds.size > 0:
+        # Show predictions
+        df_results = df_aligned.copy()
+        df_results['Predicted_Demand'] = preds
+        st.subheader("Predictions")
+        st.dataframe(df_results.head(20))
+
+        # Calculate MAPE if actual demand available
+        if 'Demand Forecast' in df_results.columns:
+            y_true = df_results['Demand Forecast'].values
+            epsilon = 1e-8
+            y_true_safe = np.where(y_true == 0, epsilon, y_true)
+            mape = mean_absolute_percentage_error(y_true_safe, preds)
+            st.success(f"MAPE: {mape:.2%}")
+
+        # Plot Actual vs Predicted
+        if 'Demand Forecast' in df_results.columns:
+            st.subheader("Actual vs Predicted Demand")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.scatterplot(x=df_results['Demand Forecast'], y=df_results['Predicted_Demand'], ax=ax, alpha=0.6)
+            ax.set_xlabel("Actual Demand")
+            ax.set_ylabel("Predicted Demand")
+            ax.set_title("Actual vs Predicted Demand")
+            st.pyplot(fig)
+    else:
+        st.warning("Not enough data to create sequences for prediction. Please upload a larger CSV.")
