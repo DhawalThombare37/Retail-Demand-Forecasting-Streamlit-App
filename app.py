@@ -141,12 +141,62 @@ class Predictor:
     def predict(self, df_input):
         X, y, df_orig = self.preprocess(df_input)
         
+        st.write("---")
+        st.write("### 🔍 DEBUG INFO")
+        
+        st.write(f"**1. After preprocessing:**")
+        st.write(f"- Generated features: {X.shape[1]}")
+        st.write(f"- Rows: {X.shape[0]}")
+        
+        generated_cols = list(X.columns)
+        st.write(f"**Generated columns ({len(generated_cols)}):**")
+        with st.expander("View all generated columns"):
+            st.code("\n".join(generated_cols))
+        
+        st.write(f"**2. Training columns expected: {len(self.training_columns)}**")
+        with st.expander("View expected training columns"):
+            st.code("\n".join(self.training_columns))
+        
+        # Find mismatches
+        missing_in_input = [col for col in self.training_columns if col not in generated_cols]
+        extra_in_input = [col for col in generated_cols if col not in self.training_columns]
+        
+        if missing_in_input:
+            st.error(f"⚠️ **Missing {len(missing_in_input)} columns** (will be filled with 0):")
+            with st.expander("View missing columns"):
+                st.code("\n".join(missing_in_input[:50]))
+        
+        if extra_in_input:
+            st.warning(f"⚠️ **Extra {len(extra_in_input)} columns** (will be removed):")
+            with st.expander("View extra columns"):
+                st.code("\n".join(extra_in_input[:50]))
+        
+        # Show one-hot encoded columns specifically
+        discount_cols_generated = [col for col in generated_cols if 'Discount_' in col]
+        discount_cols_expected = [col for col in self.training_columns if 'Discount_' in col]
+        
+        holiday_cols_generated = [col for col in generated_cols if 'Holiday/Promotion_' in col]
+        holiday_cols_expected = [col for col in self.training_columns if 'Holiday/Promotion_' in col]
+        
+        st.write("**3. One-hot encoding comparison:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Discount columns:**")
+            st.write(f"Generated: {discount_cols_generated}")
+            st.write(f"Expected: {discount_cols_expected}")
+        with col2:
+            st.write("**Holiday/Promotion columns:**")
+            st.write(f"Generated: {holiday_cols_generated}")
+            st.write(f"Expected: {holiday_cols_expected}")
+        
         # Align to training columns
         for col in self.training_columns:
             if col not in X.columns:
                 X[col] = 0
         
         X = X[self.training_columns]
+        
+        st.success(f"✅ Aligned to {X.shape[1]} features")
         
         # Scale
         X_scaled = self.scaler.transform(X)
@@ -157,6 +207,8 @@ class Predictor:
         if len(X_seq) == 0:
             st.error(f"Need at least {self.sequence_length + 1} rows")
             return None, None
+        
+        st.write(f"**4. Sequences created:** {len(X_seq)}")
         
         # Transformer predictions
         trans_preds = self.transformer.predict(X_seq, verbose=0)
@@ -169,12 +221,28 @@ class Predictor:
         # Add transformer predictions
         X_aligned['transformer_predictions_scaled'] = trans_preds.flatten()
         
+        st.write(f"**5. XGBoost input:**")
+        st.write(f"- Shape: {X_aligned.shape}")
+        st.write(f"- Expected columns: {len(self.xgb_columns)}")
+        st.write(f"- Current columns: {len(X_aligned.columns)}")
+        
+        xgb_cols_current = list(X_aligned.columns)
+        missing_xgb = [col for col in self.xgb_columns if col not in xgb_cols_current]
+        extra_xgb = [col for col in xgb_cols_current if col not in self.xgb_columns]
+        
+        if missing_xgb:
+            st.error(f"⚠️ Missing {len(missing_xgb)} XGBoost columns")
+        if extra_xgb:
+            st.warning(f"⚠️ Extra {len(extra_xgb)} XGBoost columns")
+        
         # Align to XGBoost columns
         for col in self.xgb_columns:
             if col not in X_aligned.columns:
                 X_aligned[col] = 0
         
         X_aligned = X_aligned[self.xgb_columns]
+        
+        st.success(f"✅ XGBoost aligned to {X_aligned.shape[1]} features")
         
         # Final predictions
         final_preds = self.xgb.predict(X_aligned)
@@ -188,6 +256,8 @@ class Predictor:
         y_safe = y_aligned.copy()
         y_safe[y_safe == 0] = epsilon
         mape = mean_absolute_percentage_error(y_safe, final_preds) * 100
+        
+        st.write("---")
         
         return df_results, mape
 
