@@ -81,32 +81,38 @@ class TransformerPredictor:
             X_seq.append(X_scaled[i:i+self.sequence_length])
 
         return np.array(X_seq), df.iloc[self.sequence_length - 1:].reset_index(drop=True)
+def predict(self, df):
+    X_seq, df_aligned = self.preprocess(df)
+    if X_seq.size == 0:
+        return df, None
 
-    def predict(self, df):
-        X_seq, df_aligned = self.preprocess(df)
-        if X_seq.size == 0:
-            return df, None
+    # Transformer predictions
+    transformer_preds = self.transformer_model.predict(X_seq)
+    df_aligned['transformer_preds'] = transformer_preds.flatten()
 
-        # Transformer predictions
-        transformer_preds = self.transformer_model.predict(X_seq)
-        df_aligned['transformer_preds'] = transformer_preds.flatten()
+    # Prepare X for XGBoost
+    X_xgb = df_aligned.copy()
 
-        # Prepare X for XGBoost
-        X_xgb = df_aligned[self.training_columns]
+    # Ensure all training columns exist (add missing ones as 0)
+    for col in self.training_columns:
+        if col not in X_xgb.columns:
+            X_xgb[col] = 0
+    X_xgb = X_xgb[self.training_columns]  # Reorder columns exactly
 
-        # XGBoost predictions
-        final_preds = self.xgb_model.predict(X_xgb)
-        df_aligned['Predicted Demand'] = final_preds
+    # XGBoost predictions
+    final_preds = self.xgb_model.predict(X_xgb)
+    df_aligned['Predicted Demand'] = final_preds
 
-        # MAPE calculation
-        if 'Demand Forecast' in df.columns:
-            epsilon = 1e-8
-            y_true = df_aligned['Demand Forecast'].replace(0, epsilon)
-            mape = mean_absolute_percentage_error(y_true, final_preds)
-        else:
-            mape = None
+    # MAPE calculation
+    if 'Demand Forecast' in df.columns:
+        epsilon = 1e-8
+        y_true = df_aligned['Demand Forecast'].replace(0, epsilon)
+        mape = mean_absolute_percentage_error(y_true, final_preds)
+    else:
+        mape = None
 
-        return df_aligned, mape
+    return df_aligned, mape
+
 
 predictor = TransformerPredictor(transformer_model, xgb_model, scaler, training_columns, sequence_length)
 
