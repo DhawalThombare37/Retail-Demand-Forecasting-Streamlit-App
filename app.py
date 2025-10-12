@@ -4,15 +4,29 @@ import numpy as np
 import joblib
 from sklearn.metrics import mean_absolute_percentage_error
 
-# --- Load pre-trained models and scaler ---
+import joblib
+from tensorflow.keras.models import load_model
+import streamlit as st
+
 @st.cache_resource
 def load_models():
-    transformer_model = joblib.load("transformer_model.pkl")
-    xgb_model = joblib.load("xgb_transformer_final.pkl")
+    # Load Transformer model (Keras format)
+    transformer_model = load_model("transformer_model.keras")
+    
+    # Load XGBoost model
+    xgb_model = joblib.load("xgb_model.pkl")
+    
+    # Load scaler
     scaler = joblib.load("scaler.pkl")
-    training_columns = joblib.load("training_columns.pkl")
-    sequence_length = 7  # Should match what was used in training
+    
+    # Load training columns
+    training_columns = joblib.load("training_info.pkl")
+    
+    # Sequence length used in training
+    sequence_length = 7
+    
     return transformer_model, xgb_model, scaler, training_columns, sequence_length
+
 
 transformer_model, xgb_model, scaler, training_columns, sequence_length = load_models()
 
