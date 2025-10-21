@@ -17,34 +17,32 @@ st.set_page_config(page_title="Retail Demand Forecasting", layout="wide", page_i
 # -----------------------
 st.markdown("""
 <style>
-:root{
-    --glass-bg: rgba(255,255,255,0.08);
-    --glass-border: rgba(255,255,255,0.12);
-    --accent-1: linear-gradient(135deg, rgba(30,144,255,0.95), rgba(142,68,173,0.9));
-    --accent-2: linear-gradient(135deg, rgba(44, 230, 183, 0.95), rgba(108, 96, 255, 0.9));
-    --muted: rgba(255,255,255,0.6);
-    --glass-blur: 12px;
+@keyframes gradientGlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
-.stApp {
-    background: radial-gradient(1000px 400px at 10% 10%, rgba(142,68,173,0.12), transparent 8%),
-                radial-gradient(900px 300px at 95% 90%, rgba(30,144,255,0.10), transparent 5%),
-                linear-gradient(180deg, #0f1226 0%, #071028 100%);
-    color: #e9eef8;
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
+
+.metric {
+    padding:18px; border-radius:14px; border:1px solid rgba(255,255,255,0.04);
+    background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+    position: relative; overflow: hidden;
 }
-.metric { padding:18px; border-radius:14px; border:1px solid rgba(255,255,255,0.04);
-         background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-         box-shadow: 0 6px 18px rgba(2,6,23,0.45);}
 .metric .label { color: rgba(255,255,255,0.85); font-size:0.95rem; font-weight:600;}
 .metric .value { font-weight:700; font-size:1.6rem; color:white; margin-top:6px; }
-.glass-strong { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
-                border-radius: 18px; border: 1px solid rgba(255,255,255,0.15);
-                backdrop-filter: blur(calc(var(--glass-blur) + 6px)); padding:20px; margin-bottom:16px; }
-.uploader { border: 1px dashed rgba(255,255,255,0.08); border-radius:14px;
-           padding:20px; text-align:center; color:var(--muted);}
-.uploader:hover { background: linear-gradient(135deg, rgba(30,144,255,0.03), rgba(142,68,173,0.03)); }
-.muted { color:var(--muted); font-size:0.9rem; }
+
+.metric::before {
+    content:""; position:absolute; top:0; left:-50%; width:200%; height:100%;
+    background: linear-gradient(270deg, rgba(30,144,255,0.3), rgba(142,68,173,0.3), rgba(44,230,183,0.3));
+    background-size: 400% 400%;
+    animation: gradientGlow 6s ease infinite;
+    filter: blur(25px);
+    z-index:0;
+    pointer-events:none;
+}
+
+.metric > * { position: relative; z-index:1; }
 </style>
 """, unsafe_allow_html=True)
 
