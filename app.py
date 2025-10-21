@@ -2,28 +2,28 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from tensorflow.keras.models import load_model
 from sklearn.metrics import mean_absolute_percentage_error
+from tensorflow.keras.models import load_model
 
-# -------------------------
-# Load Models & Config
-# -------------------------
-@st.cache_resource
-def load_models():
-    scaler = joblib.load("scaler.pkl")
-    training_columns = joblib.load("training_columns.pkl")
-    sequence_length = joblib.load("sequence_length.pkl")
+st.set_page_config(page_title="Retail Demand Forecasting", layout="wide")
+
+st.title("Retail Demand Forecasting App")
+
+# Upload CSV
+uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+if uploaded_file is not None:
+    df_full = pd.read_csv(uploaded_file)
+    st.success(f"✅ File loaded successfully — Shape: {df_full.shape}")
+
+    # Load models and scaler
     transformer_model = load_model("transformer_model.keras")
     xgb_model = joblib.load("xgb_model.pkl")
-    return scaler, training_columns, sequence_length, transformer_model, xgb_model
+    scaler = joblib.load("scaler.pkl")
+    training_columns = joblib.load("training_columns.pkl")
+    sequence_length = joblib.load("sequence_length.pkl")  # if used in Transformer
 
-scaler, training_columns, sequence_length, transformer_model, xgb_model = load_models()
-
-# -------------------------
-# Helper Functions
-# -------------------------
-def preprocess_and_encode(df):
-    df = df.copy()
+    # Preprocessing
+    df = df_full.copy()
     df['Date'] = pd.to_datetime(df['Date'])
     df['year'] = df['Date'].dt.year
     df['month'] = df['Date'].dt.month
@@ -31,75 +31,53 @@ def preprocess_and_encode(df):
     df['dayofweek'] = df['Date'].dt.dayofweek
     df['weekofyear'] = df['Date'].dt.isocalendar().week
 
-    categorical_cols = ['Discount', 'Holiday/Promotion']
-    df = pd.get_dummies(df, columns=categorical_cols, drop_first=False)
+    # One-hot encoding
+    df = pd.get_dummies(df, columns=['Discount', 'Holiday/Promotion'], drop_first=False)
 
-    # Add missing columns from training
-    for col in training_columns:
-        if col not in df.columns:
-            df[col] = 0
+    # Lag features (7-day)
+    for col in ['Inventory Level', 'Units Sold', 'Units Ordered', 'Demand Forecast', 'Price']:
+        df[f"{col}_lag_7"] = df[col].shift(7)
+        df[f"{col}_rolling_mean_7"] = df[col].rolling(window=7).mean()
+        df[f"{col}_rolling_std_7"] = df[col].rolling(window=7).std()
 
-    df = df[training_columns]  # keep only training columns
-    return df
+    df.fillna(0, inplace=True)  # Fill NaNs from lags/rolling
 
-def create_sequences(df, seq_length, features):
-    data = df[features].values
-    X_seq = []
-    for i in range(len(data) - seq_length + 1):
-        X_seq.append(data[i:i+seq_length])
-    return np.array(X_seq)
+    # Transformer input (scaled)
+    transformer_features = [col for col in df.columns if col in training_columns]
+    df_scaled = pd.DataFrame(scaler.transform(df[transformer_features]), columns=transformer_features)
 
-# -------------------------
-# Streamlit App
-# -------------------------
-st.title("Retail Demand Forecasting")
+    # Transformer predictions
+    transformer_input = df_scaled.tail(len(df_scaled)).to_numpy().reshape(-1, sequence_length, len(transformer_features))
+    transformer_preds = transformer_model.predict(transformer_input, verbose=0)
+    transformer_preds_scaled = transformer_preds.flatten()
 
-uploaded_file = st.file_uploader("Upload CSV", type="csv")
-if uploaded_file:
-    df_input = pd.read_csv(uploaded_file)
-    st.success(f"✅ File loaded successfully — Shape: {df_input.shape}")
+    # Add Transformer predictions to df
+    df_scaled['transformer_predictions_scaled'] = transformer_preds_scaled
 
-    try:
-        # Preprocess
-        df_full = preprocess_and_encode(df_input)
-        
-        # Scale features
-        df_scaled = pd.DataFrame(scaler.transform(df_full), columns=df_full.columns)
-        
-        # Create sequences for Transformer
-        X_seq = create_sequences(df_scaled, sequence_length, training_columns)
-        transformer_preds_seq = transformer_model.predict(X_seq, verbose=0)
+    # Align features for XGBoost
+    missing_cols = [col for col in training_columns if col not in df_scaled.columns]
+    for col in missing_cols:
+        df_scaled[col] = 0  # Add missing columns as zeros
 
-        # Map back to dataframe
-        transformer_preds_full = np.concatenate([
-            np.full(sequence_length-1, transformer_preds_seq[0]),
-            transformer_preds_seq.flatten()
-        ])
-        df_scaled['transformer_predictions_scaled'] = transformer_preds_full  # MUST match training column
+    df_scaled = df_scaled[training_columns]  # Ensure same column order
 
-        # XGBoost prediction
-X_xgb = df_scaled.copy()
-final_preds = xgb_model.predict(X_xgb)
-df_input['Predicted_Demand'] = final_preds
+    # XGBoost predictions
+    X_xgb = df_scaled.copy()
+    final_preds = xgb_model.predict(X_xgb)
+    df_full['Predicted_Demand'] = final_preds
 
-st.subheader("Predictions")
-st.dataframe(df_input)
+    st.subheader("Predictions")
+    st.dataframe(df_full)
 
-# Compute MAPE only on test rows
-# Option 1: Using 'is_test' column if available
-if 'is_test' in df_input.columns:
-    test_rows = df_input[df_input['is_test'] == 1]
-    if 'Demand Forecast' in test_rows.columns:
-        mape = mean_absolute_percentage_error(test_rows['Demand Forecast'], test_rows['Predicted_Demand'])
-        st.success(f"MAPE on Test Set: {mape*100:.2f}%")
+    # Compute MAPE on test rows only
+    if 'is_test' in df_full.columns:
+        test_rows = df_full[df_full['is_test'] == 1]
     else:
-        st.warning("Demand Forecast column not found — cannot compute MAPE for test set.")
-# Option 2: Using last N rows as test (replace N with your test size)
-else:
-    N = 73094  # <-- same number of test rows you used in Colab
-    test_rows = df_input.iloc[-N:]
+        N = 73094  # <-- replace with exact number of test rows from Colab
+        test_rows = df_full.iloc[-N:]
+
     if 'Demand Forecast' in test_rows.columns:
-        mape = mean_absolute_percentage_error(test_rows['Demand Forecast'], test_rows['Predicted_Demand'])
-        st.success(f"MAPE on Test Set (last {N} rows): {mape*100:.2f}%")
+        test_mape = mean_absolute_percentage_error(test_rows['Demand Forecast'], test_rows['Predicted_Demand'])
+        st.success(f"✅ MAPE on Test Set: {test_mape*100:.2f}%")
     else:
         st.warning("Demand Forecast column not found — cannot compute MAPE for test set.")
