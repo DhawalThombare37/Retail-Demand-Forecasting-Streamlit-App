@@ -23,10 +23,7 @@ scaler, training_columns, sequence_length, transformer_model, xgb_model = load_m
 # Helper Functions
 # -------------------------
 def preprocess_and_encode(df):
-    # Ensure correct column order
     df = df.copy()
-    
-    # Extract date features
     df['Date'] = pd.to_datetime(df['Date'])
     df['year'] = df['Date'].dt.year
     df['month'] = df['Date'].dt.month
@@ -34,11 +31,10 @@ def preprocess_and_encode(df):
     df['dayofweek'] = df['Date'].dt.dayofweek
     df['weekofyear'] = df['Date'].dt.isocalendar().week
 
-    # One-hot encoding for categorical columns
     categorical_cols = ['Discount', 'Holiday/Promotion']
     df = pd.get_dummies(df, columns=categorical_cols, drop_first=False)
-    
-    # Ensure all training columns exist (add missing with zeros)
+
+    # Add missing columns from training
     for col in training_columns:
         if col not in df.columns:
             df[col] = 0
@@ -68,20 +64,21 @@ if uploaded_file:
         df_full = preprocess_and_encode(df_input)
         
         # Scale features
-        df_full_scaled = pd.DataFrame(scaler.transform(df_full), columns=df_full.columns)
+        df_scaled = pd.DataFrame(scaler.transform(df_full), columns=df_full.columns)
         
         # Create sequences for Transformer
-        X_seq = create_sequences(df_full_scaled, sequence_length, training_columns)
+        X_seq = create_sequences(df_scaled, sequence_length, training_columns)
         transformer_preds_seq = transformer_model.predict(X_seq, verbose=0)
-        
-        # Map predictions back to dataframe
-        transformer_preds_full = np.concatenate(
-            [np.full((sequence_length-1,), transformer_preds_seq[0]), transformer_preds_seq.flatten()]
-        )
-        df_full_scaled['Transformer_Pred'] = transformer_preds_full
+
+        # Map back to dataframe
+        transformer_preds_full = np.concatenate([
+            np.full(sequence_length-1, transformer_preds_seq[0]),
+            transformer_preds_seq.flatten()
+        ])
+        df_scaled['transformer_predictions_scaled'] = transformer_preds_full  # MUST match training column
 
         # XGBoost prediction
-        X_xgb = df_full_scaled.copy()
+        X_xgb = df_scaled.copy()
         final_preds = xgb_model.predict(X_xgb)
 
         df_input['Predicted_Demand'] = final_preds
