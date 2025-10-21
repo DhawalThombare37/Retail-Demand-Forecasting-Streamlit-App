@@ -78,19 +78,28 @@ if uploaded_file:
         df_scaled['transformer_predictions_scaled'] = transformer_preds_full  # MUST match training column
 
         # XGBoost prediction
-        X_xgb = df_scaled.copy()
-        final_preds = xgb_model.predict(X_xgb)
+X_xgb = df_scaled.copy()
+final_preds = xgb_model.predict(X_xgb)
+df_input['Predicted_Demand'] = final_preds
 
-        df_input['Predicted_Demand'] = final_preds
-        st.subheader("Predictions")
-        st.dataframe(df_input)
+st.subheader("Predictions")
+st.dataframe(df_input)
 
-        # Compute MAPE
-        if 'Demand Forecast' in df_input.columns:
-            mape = mean_absolute_percentage_error(df_input['Demand Forecast'], df_input['Predicted_Demand'])
-            st.success(f"MAPE on uploaded data: {mape*100:.2f}%")
-        else:
-            st.warning("Demand Forecast column not found — cannot compute MAPE.")
-
-    except Exception as e:
-        st.error(f"⚠️ Error during prediction: {str(e)}")
+# Compute MAPE only on test rows
+# Option 1: Using 'is_test' column if available
+if 'is_test' in df_input.columns:
+    test_rows = df_input[df_input['is_test'] == 1]
+    if 'Demand Forecast' in test_rows.columns:
+        mape = mean_absolute_percentage_error(test_rows['Demand Forecast'], test_rows['Predicted_Demand'])
+        st.success(f"MAPE on Test Set: {mape*100:.2f}%")
+    else:
+        st.warning("Demand Forecast column not found — cannot compute MAPE for test set.")
+# Option 2: Using last N rows as test (replace N with your test size)
+else:
+    N = 73094  # <-- same number of test rows you used in Colab
+    test_rows = df_input.iloc[-N:]
+    if 'Demand Forecast' in test_rows.columns:
+        mape = mean_absolute_percentage_error(test_rows['Demand Forecast'], test_rows['Predicted_Demand'])
+        st.success(f"MAPE on Test Set (last {N} rows): {mape*100:.2f}%")
+    else:
+        st.warning("Demand Forecast column not found — cannot compute MAPE for test set.")
