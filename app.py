@@ -5,7 +5,6 @@ import numpy as np
 import joblib
 import tensorflow as tf
 from sklearn.metrics import mean_absolute_percentage_error
-import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -15,162 +14,181 @@ from datetime import datetime
 st.set_page_config(page_title="Retail Demand Forecasting — Glassmorphic", layout="wide", page_icon="🛒")
 
 # -----------------------
-# Custom CSS (glassmorphic, vibrant cards, background glows)
+# Custom CSS (Enhanced Glassmorphism + Animated Background)
 # -----------------------
 st.markdown("""
 <style>
 :root{
-    --glass-blur: 12px;
-    --muted: rgba(255,255,255,0.6);
+    --glass-bg: rgba(255,255,255,0.08);
+    --glass-border: rgba(255,255,255,0.12);
+    --accent-1: linear-gradient(135deg, rgba(30,144,255,0.95), rgba(142,68,173,0.9));
+    --accent-2: linear-gradient(135deg, rgba(44, 230, 183, 0.95), rgba(108, 96, 255, 0.9));
+    --muted: rgba(255,255,255,0.75);
+    --glass-blur: 14px;
 }
+
+/* Page background with animated glow circles */
 .stApp {
-    background: radial-gradient(1000px 400px at 10% 10%, rgba(142,68,173,0.12), transparent 8%),
-                radial-gradient(900px 300px at 95% 90%, rgba(30,144,255,0.10), transparent 5%),
+    background: radial-gradient(1200px 500px at 15% 15%, rgba(30,144,255,0.14), transparent 15%),
+                radial-gradient(1000px 400px at 80% 80%, rgba(142,68,173,0.12), transparent 15%),
+                radial-gradient(600px 600px at 40% 70%, rgba(44,230,183,0.08), transparent 20%),
                 linear-gradient(180deg, #0f1226 0%, #071028 100%);
     color: #e9eef8;
     font-family: 'Inter', sans-serif;
     min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
 }
-.glass-strong {
-    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.035));
+
+/* Glass cards */
+.glass {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
     border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.12);
+    border: 1px solid var(--glass-border);
     backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
     padding:18px;
+    margin-bottom:18px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
+.glass:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 48px rgba(2,6,23,0.75);
+}
+
+/* Metrics cards vibrant + glowing */
 .metric {
-    padding:18px; border-radius:14px; transition: transform 0.25s; 
-    border:1px solid rgba(255,255,255,0.04);
-    background: linear-gradient(135deg, rgba(255,255,255,0.022), rgba(255,255,255,0.01));
-    color:white; box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+    padding:20px;
+    border-radius:16px;
+    background: linear-gradient(135deg, rgba(30,144,255,0.12), rgba(142,68,173,0.1));
+    border:1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 8px 26px rgba(12,22,45,0.7);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.metric:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 18px 40px rgba(2,6,23,0.6);}
-.metric .label { color: rgba(255,255,255,0.75); font-size:0.9rem; }
-.metric .value { font-weight:700; font-size:1.5rem; margin-top:6px; }
-div.stFileUploader > label > div { color: black !important; font-weight: 600; }
+.metric:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 18px 44px rgba(30,144,255,0.6);
+}
+.metric .label { color: var(--muted); font-size:0.95rem; font-weight:600; }
+.metric .value { font-weight:700; font-size:1.6rem; margin-top:6px; color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.3); }
+
+/* Headings */
+h2, h3 { color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.4); }
+
+/* File uploader */
+.uploader {
+    border: 1px dashed rgba(255,255,255,0.08);
+    border-radius:14px;
+    padding:22px;
+    text-align:center;
+    color:var(--muted);
+    transition: background 0.25s, transform 0.2s;
+}
+.uploader:hover{
+    background: linear-gradient(135deg, rgba(30,144,255,0.03), rgba(142,68,173,0.03));
+    transform: translateY(-4px);
+}
+
+/* Table */
+.stDataFrame table {
+    border-radius:12px !important;
+    overflow:hidden;
+}
+
+/* Animated floating plot glow wrapper */
+.plot-glow {
+    position: relative;
+}
+.plot-glow::before {
+    content:'';
+    position: absolute;
+    top:-60px; left:-60px;
+    width:300px; height:300px;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(30,144,255,0.18), transparent 60%);
+    filter: blur(80px);
+    animation: float 12s ease-in-out infinite alternate;
+    z-index:-1;
+}
+.plot-glow::after {
+    content:'';
+    position: absolute;
+    bottom:-60px; right:-60px;
+    width:300px; height:300px;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(142,68,173,0.15), transparent 60%);
+    filter: blur(60px);
+    animation: float2 15s ease-in-out infinite alternate;
+    z-index:-1;
+}
+
+@keyframes float {
+    0% {transform: translateY(0px) translateX(0px);}
+    50% {transform: translateY(40px) translateX(20px);}
+    100% {transform: translateY(0px) translateX(0px);}
+}
+@keyframes float2 {
+    0% {transform: translateY(0px) translateX(0px);}
+    50% {transform: translateY(-30px) translateX(-20px);}
+    100% {transform: translateY(0px) translateX(0px);}
+}
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------
 # Header
 # -----------------------
-st.markdown("<h2 style='color:white;'>Retail Demand Forecasting Dashboard</h2>", unsafe_allow_html=True)
-
-# -----------------------
-# Model loader
-# -----------------------
-@st.cache_resource
-def load_models():
-    transformer = tf.keras.models.load_model("transformer_model.keras")
-    xgb = joblib.load("xgb_model.pkl")
-    scaler = joblib.load("scaler.pkl")
-    training_cols = joblib.load("training_columns.pkl")
-    xgb_cols = joblib.load("xgb_columns.pkl")
-    seq_len = joblib.load("sequence_length.pkl")
-    return transformer, xgb, scaler, training_cols, xgb_cols, seq_len
-
-try:
-    transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
-    models_loaded = True
-except:
-    st.error("❌ Model files missing or failed to load.")
-    models_loaded = False
-
-# -----------------------
-# Predictor class
-# -----------------------
-class Predictor:
-    def __init__(self, transformer, xgb, scaler, train_cols, xgb_cols, seq_len):
-        self.transformer = transformer
-        self.xgb = xgb
-        self.scaler = scaler
-        self.training_columns = train_cols
-        self.xgb_columns = xgb_cols
-        self.sequence_length = seq_len
-
-    def preprocess(self, df):
-        df = df.copy()
-        df['Date'] = pd.to_datetime(df['Date'])
-        df = df.sort_values(by='Date').reset_index(drop=True)
-        features = [c for c in df.columns if c not in ['Date','Demand Forecast','Store ID','Product ID']]
-        X = df[features].fillna(0)
-        y = df['Demand Forecast'].copy()
-        return X, y, df
-
-    def predict(self, df_input):
-        X, y, df_orig = self.preprocess(df_input)
-        df_orig['Date'] = pd.to_datetime(df_orig['Date'])
-        for col in self.training_columns:
-            if col not in X.columns:
-                X[col] = 0
-        X = X[self.training_columns]
-        X_scaled = self.scaler.transform(X)
-        # Transformer predictions
-        trans_preds = self.transformer.predict(X_scaled.reshape((X_scaled.shape[0],1,X_scaled.shape[1])), verbose=0)
-        # XGB predictions
-        for col in self.xgb_columns:
-            if col not in X.columns:
-                X[col]=0
-        X_xgb = X[self.xgb_columns]
-        final_preds = self.xgb.predict(X_xgb)
-        df_results = df_orig.copy()
-        df_results['Predicted_Demand'] = final_preds
-        y_safe = y.copy()
-        y_safe[y_safe==0] = 1e-8
-        mape = mean_absolute_percentage_error(y_safe, final_preds)*100
-        return df_results.reset_index(drop=True), mape
+st.markdown("<h2>🛒 Retail Demand Forecasting</h2>", unsafe_allow_html=True)
+st.markdown("<p style='color:rgba(255,255,255,0.75)'>Upload CSV containing: Date, Store ID, Product ID, Demand Forecast (Actual)</p>", unsafe_allow_html=True)
 
 # -----------------------
 # File uploader
 # -----------------------
-st.markdown("<div class='glass-strong'><h3>Upload your Retail CSV</h3></div>", unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Drag & drop CSV or click to browse", type=["csv"])
-
-if uploaded_file and models_loaded:
+uploaded_file = st.file_uploader("Upload your CSV here", type=["csv"])
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    predictor = Predictor(transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length)
-    with st.spinner("Running predictions..."):
-        results, mape = predictor.predict(df)
+    df['Date'] = pd.to_datetime(df['Date'])
 
     # -----------------------
-    # Metrics cards
+    # Show metrics in vibrant glass cards
     # -----------------------
-    total_rows = len(results)
-    total_stores = results['Store ID'].nunique()
-    total_products = results['Product ID'].nunique()
+    total_rows = df.shape[0]
+    total_stores = df['Store ID'].nunique()
+    total_products = df['Product ID'].nunique()
+    mape = np.mean(np.abs((df['Demand Forecast'] - df['Predicted_Demand'])/(df['Demand Forecast']+1e-8)))*100 if 'Predicted_Demand' in df.columns else 0
+    
     col1, col2, col3, col4 = st.columns(4)
-    col1.markdown(f"<div class='metric'><div class='label'>Total Rows</div><div class='value'>{total_rows}</div></div>", unsafe_allow_html=True)
+    col1.markdown(f"<div class='metric'><div class='label'>Total Rows</div><div class='value'>{total_rows:,}</div></div>", unsafe_allow_html=True)
     col2.markdown(f"<div class='metric'><div class='label'>Stores</div><div class='value'>{total_stores}</div></div>", unsafe_allow_html=True)
     col3.markdown(f"<div class='metric'><div class='label'>Products</div><div class='value'>{total_products}</div></div>", unsafe_allow_html=True)
     col4.markdown(f"<div class='metric'><div class='label'>MAPE</div><div class='value'>{mape:.2f}%</div></div>", unsafe_allow_html=True)
-
+    
     st.markdown("<br/>", unsafe_allow_html=True)
 
     # -----------------------
-    # Plot 1: Actual vs Predicted Demand
+    # Visualization 1: Actual vs Predicted (Line Chart)
     # -----------------------
-    agg = results.groupby('Date')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
-    with st.container():
-        st.markdown("<div class='glass-strong' style='padding:16px'><h4>Actual vs Predicted Demand</h4></div>", unsafe_allow_html=True)
-        fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
-                                  name='Actual', line=dict(color='cyan', width=3)))
-        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
-                                  name='Predicted', line=dict(color='magenta', width=3, dash='dash')))
-        fig1.update_layout(template='plotly_dark',
-                           paper_bgcolor='rgba(0,0,0,0)',
-                           plot_bgcolor='rgba(0,0,0,0)',
-                           margin=dict(t=30,b=10,l=10,r=10))
-        st.plotly_chart(fig1, use_container_width=True)
+    st.markdown("<div class='glass plot-glow'><h3>Actual vs Predicted Demand</h3></div>", unsafe_allow_html=True)
+    fig1 = go.Figure()
+    agg = df.groupby('Date')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
+    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
+                              name='Actual', line=dict(color='cyan', width=3), marker=dict(size=6)))
+    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
+                              name='Predicted', line=dict(color='magenta', width=3, dash='dash'), marker=dict(size=6)))
+    fig1.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                       legend=dict(bgcolor='rgba(255,255,255,0.03)'))
+    st.plotly_chart(fig1, use_container_width=True)
 
     # -----------------------
-    # Plot 2: Product-wise Average Prediction Error
+    # Visualization 2: Product-wise Avg Prediction Error
     # -----------------------
-    results['abs_error'] = abs(results['Demand Forecast'] - results['Predicted_Demand'])
-    product_error = results.groupby('Product ID')['abs_error'].mean().reset_index()
-    with st.container():
-        st.markdown("<div class='glass-strong' style='padding:16px'><h4>Product-wise Average Prediction Error</h4></div>", unsafe_allow_html=True)
-        fig2 = px.line(product_error, x='Product ID', y='abs_error', markers=True, template='plotly_dark')
-        fig2.update_traces(line=dict(color='orange', width=3))
-        fig2.update_layout(margin=dict(t=30,b=10,l=10,r=10))
-        st.plotly_chart(fig2, use_container_width=True)
+    st.markdown("<div class='glass plot-glow'><h3>Product-wise Average Prediction Error</h3></div>", unsafe_allow_html=True)
+    df['Abs_Error'] = abs(df['Demand Forecast'] - df['Predicted_Demand'])
+    prod_err = df.groupby('Product ID')['Abs_Error'].mean().reset_index().sort_values('Abs_Error',ascending=False)
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(x=prod_err['Product ID'], y=prod_err['Abs_Error'], mode='lines+markers',
+                              line=dict(color='orange', width=3), marker=dict(size=6)))
+    fig2.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                       xaxis_tickangle=-45)
+    st.plotly_chart(fig2, use_container_width=True)
