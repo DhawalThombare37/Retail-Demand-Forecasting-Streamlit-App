@@ -65,10 +65,6 @@ st.markdown("""
     box-shadow: 0 8px 26px rgba(12,22,45,0.7);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
     text-align:center;
-
-    /* NEW */
-    margin: 8px;           /* space between cards */
-    flex: 1; 
 }
 .metric:hover {
     transform: translateY(-6px) scale(1.02);
@@ -274,7 +270,7 @@ if uploaded:
         if results is not None:
             # Metrics display
             st.markdown("<h3>🎯 Results</h3>", unsafe_allow_html=True)
-           col1, col2, col3 = st.columns(3)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.markdown(f"""
                 <div class="metric">
