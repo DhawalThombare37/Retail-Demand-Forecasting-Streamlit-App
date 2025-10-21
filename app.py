@@ -8,14 +8,14 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title="Retail Demand Forecasting - XGB + Transformer Fusion", layout="wide")
+st.set_page_config(page_title="Retail Demand Forecasting (XGB + Transformer)", layout="wide")
 
 # ----------------------------------------------------------------------
-# 1️⃣ Load all saved model artifacts (exact from Colab)
+# 1️⃣ Load saved models and preprocessing objects
 # ----------------------------------------------------------------------
 @st.cache_resource
 def load_artifacts():
-    xgb_model = joblib.load("xgb_model.pkl")
+    xgb_model = joblib.load("xgb_model.pkl")  # ✅ your filename
     transformer_model = tf.keras.models.load_model("transformer_model.keras", compile=False)
     scaler = joblib.load("scaler.pkl")
     training_columns = joblib.load("training_columns.pkl")
@@ -25,81 +25,85 @@ def load_artifacts():
 
 xgb_model, transformer_model, scaler, training_columns, xgb_columns, seq_len = load_artifacts()
 
-st.title("📊 Retail Demand Forecasting (3% MAPE – Colab Synced)")
+st.title("📊 Retail Demand Forecasting – Colab Synced (≈3% MAPE)")
 
 # ----------------------------------------------------------------------
-# 2️⃣ Upload CSV
+# 2️⃣ Upload user dataset
 # ----------------------------------------------------------------------
-uploaded_file = st.file_uploader("📤 Upload full train/test CSV file", type=["csv"])
+uploaded_file = st.file_uploader("📤 Upload your full train/test CSV file", type=["csv"])
 
 if uploaded_file:
     df_full = pd.read_csv(uploaded_file)
+    df_full.columns = df_full.columns.str.strip()  # clean spaces
+
     st.success(f"✅ File loaded successfully — Shape: {df_full.shape}")
 
     # ----------------------------------------------------------------------
-    # 3️⃣ Ensure same preprocessing pipeline (match training columns exactly)
+    # 3️⃣ Align columns with training data
     # ----------------------------------------------------------------------
-    df_full.columns = df_full.columns.str.strip()
-    df_full = df_full[training_columns]  # keep only the same columns as in training
+    missing_cols = [c for c in training_columns if c not in df_full.columns]
+    for col in missing_cols:
+        df_full[col] = 0  # fill missing with zeros
+    df_full = df_full[training_columns]
 
-    # Scale using saved scaler
+    # ----------------------------------------------------------------------
+    # 4️⃣ Apply saved scaler
+    # ----------------------------------------------------------------------
     df_scaled = pd.DataFrame(scaler.transform(df_full), columns=training_columns)
 
     # ----------------------------------------------------------------------
-    # 4️⃣ Sequence preparation (same as Colab Transformer input)
+    # 5️⃣ Prepare Transformer sequence input
     # ----------------------------------------------------------------------
     def create_sequences(data, seq_len):
         X_seq = []
         for i in range(len(data) - seq_len):
-            X_seq.append(data.iloc[i:i+seq_len].values)
+            X_seq.append(data.iloc[i:i + seq_len].values)
         return np.array(X_seq)
 
     X_seq = create_sequences(df_scaled, seq_len)
-
-    # Predict Transformer embeddings
     transformer_preds = transformer_model.predict(X_seq, verbose=0)
-    transformer_preds = np.concatenate([[0]*seq_len, transformer_preds.flatten()])  # align lengths
-
-    # Append transformer predictions as new feature
+    transformer_preds = np.concatenate([[0] * seq_len, transformer_preds.flatten()])
     df_full["transformer_predictions_scaled"] = transformer_preds
 
     # ----------------------------------------------------------------------
-    # 5️⃣ Align columns for XGBoost model
+    # 6️⃣ Align for XGBoost
     # ----------------------------------------------------------------------
     for col in xgb_columns:
         if col not in df_full.columns:
-            df_full[col] = 0  # add missing if any
+            df_full[col] = 0
 
-    X_xgb = df_full[xgb_columns]
+    df_full = df_full[xgb_columns]
 
     # ----------------------------------------------------------------------
-    # 6️⃣ Make final predictions
+    # 7️⃣ Predict with XGBoost
     # ----------------------------------------------------------------------
-    preds = xgb_model.predict(X_xgb)
+    preds = xgb_model.predict(df_full)
     df_full["Predicted_Demand"] = preds
 
-    # Compute MAPE if actuals exist
+    # ----------------------------------------------------------------------
+    # 8️⃣ Calculate MAPE (if actual target present)
+    # ----------------------------------------------------------------------
     if "Demand Forecast" in df_full.columns:
         mape = mean_absolute_percentage_error(df_full["Demand Forecast"], preds) * 100
-        st.success(f"✅ Predictions complete — MAPE: {mape:.2f}%")
+        st.success(f"✅ Prediction complete — MAPE: {mape:.2f}%")
     else:
         mape = None
-        st.info("Predictions complete (no actual labels found).")
+        st.info("Predictions generated (no 'Demand Forecast' column found).")
 
     # ----------------------------------------------------------------------
-    # 7️⃣ Display results
+    # 9️⃣ Show results
     # ----------------------------------------------------------------------
     st.write("### 🔍 Sample Predictions")
-    st.dataframe(df_full[["Predicted_Demand"]].head(10))
+    st.dataframe(df_full.head(10))
 
-    fig, ax = plt.subplots(figsize=(8,4))
+    fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(df_full["Predicted_Demand"], label="Predicted", color="orange")
     if "Demand Forecast" in df_full.columns:
         ax.plot(df_full["Demand Forecast"], label="Actual", color="green")
     ax.legend()
     st.pyplot(fig)
 
-    # Download option
+    # Download results
     csv = df_full.to_csv(index=False).encode('utf-8')
     st.download_button("⬇️ Download Predicted Results", data=csv, file_name="predictions.csv", mime="text/csv")
 
