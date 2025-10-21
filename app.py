@@ -81,11 +81,11 @@ if uploaded_file:
     df_full["Predicted_Demand"] = preds
 
     # ----------------------------------------------------------------------
-    # 8️⃣ Calculate MAPE (if actual target present)
+    # 8️⃣ Calculate & display MAPE
     # ----------------------------------------------------------------------
     if "Demand Forecast" in df_full.columns:
         mape = mean_absolute_percentage_error(df_full["Demand Forecast"], preds) * 100
-        st.success(f"✅ Prediction complete — MAPE: {mape:.2f}%")
+        st.markdown(f"### ✅ Prediction complete — **MAPE: {mape:.2f}%**")
     else:
         mape = None
         st.info("Predictions generated (no 'Demand Forecast' column found).")
