@@ -274,7 +274,7 @@ if uploaded:
         if results is not None:
             # Metrics display
             st.markdown("<h3>🎯 Results</h3>", unsafe_allow_html=True)
-           col1, col2, col3 = st.columns([1,1,1], gap="medium")
+           col1, col2, col3 = st.columns()
             with col1:
                 st.markdown(f"""
                 <div class="metric">
@@ -297,7 +297,7 @@ if uploaded:
                 </div>
                 """, unsafe_allow_html=True)
 
-            col4, col5, col6 = st.columns([1,1,1], gap="medium")
+            col4, col5, col6 = st.columns()
             with col4:
                 st.markdown(f"""
                 <div class="metric">
