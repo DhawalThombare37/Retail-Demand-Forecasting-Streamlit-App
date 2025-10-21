@@ -74,21 +74,26 @@ if uploaded_file:
 
     df_full = df_full[xgb_columns]
 
-    # ----------------------------------------------------------------------
-    # 7️⃣ Predict with XGBoost
-    # ----------------------------------------------------------------------
-    preds = xgb_model.predict(df_full)
-    df_full["Predicted_Demand"] = preds
+   # ----------------------------------------------------------------------
+# 7️⃣ Predict with XGBoost
+# ----------------------------------------------------------------------
+preds = xgb_model.predict(df_full)
+df_full["Predicted_Demand"] = preds
 
-    # ----------------------------------------------------------------------
-    # 8️⃣ Calculate & display MAPE
-    # ----------------------------------------------------------------------
-    if "Demand Forecast" in df_full.columns:
-        mape = mean_absolute_percentage_error(df_full["Demand Forecast"], preds) * 100
-        st.markdown(f"### ✅ Prediction complete — **MAPE: {mape:.2f}%**")
-    else:
-        mape = None
-        st.info("Predictions generated (no 'Demand Forecast' column found).")
+# ----------------------------------------------------------------------
+# 8️⃣ Compute MAPE on original test rows
+# ----------------------------------------------------------------------
+# Assuming Colab used last N rows as test (replace N with your exact number)
+test_rows = 494  # <-- use the same as Colab
+if "Demand Forecast" in df_full.columns:
+    y_true = df_full["Demand Forecast"].iloc[-test_rows:]
+    y_pred = df_full["Predicted_Demand"].iloc[-test_rows:]
+    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+    st.markdown(f"### ✅ Prediction complete — **MAPE on test rows: {mape:.2f}%**")
+else:
+    mape = None
+    st.info("Predictions generated, but no 'Demand Forecast' column found to compute MAPE.")
+
 
     # ----------------------------------------------------------------------
     # 9️⃣ Show results
