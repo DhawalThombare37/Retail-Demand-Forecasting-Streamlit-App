@@ -74,7 +74,7 @@ if uploaded_file:
 
     df_full = df_full[xgb_columns]
 
-   # ----------------------------------------------------------------------
+ # ----------------------------------------------------------------------
 # 7️⃣ Predict with XGBoost
 # ----------------------------------------------------------------------
 preds = xgb_model.predict(df_full)
@@ -93,6 +93,7 @@ if "Demand Forecast" in df_full.columns:
 else:
     mape = None
     st.info("Predictions generated, but no 'Demand Forecast' column found to compute MAPE.")
+
 
 
     # ----------------------------------------------------------------------
