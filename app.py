@@ -6,6 +6,7 @@ import tensorflow as tf
 from sklearn.metrics import mean_absolute_percentage_error
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
 
 # Page config
 st.set_page_config(
@@ -15,111 +16,293 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for modern UI
+# Custom CSS for ultra-modern UI
 st.markdown("""
 <style>
-    /* Main background gradient */
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
     }
     
-    /* Header styling */
+    /* Main background - Dark theme with subtle gradient */
+    .stApp {
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+        background-attachment: fixed;
+    }
+    
+    /* Animated background particles effect */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(88, 166, 255, 0.3) 0%, transparent 50%),
+            radial-gradient(circle at 40% 20%, rgba(255, 119, 190, 0.3) 0%, transparent 50%);
+        animation: float 20s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    @keyframes float {
+        0%, 100% { opacity: 0.5; transform: translateY(0px); }
+        50% { opacity: 0.8; transform: translateY(-20px); }
+    }
+    
+    /* Main container */
+    .main .block-container {
+        padding: 2rem 3rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* Header with 3D effect */
     .main-header {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 20px;
-        margin-bottom: 2rem;
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        padding: 2.5rem;
+        border-radius: 25px;
+        margin-bottom: 2.5rem;
+        border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 
+            0 8px 32px 0 rgba(31, 38, 135, 0.37),
+            inset 0 1px 0 0 rgba(255,255,255,0.1);
+        transform: perspective(1000px) rotateX(2deg);
+        transition: all 0.3s ease;
+    }
+    
+    .main-header:hover {
+        transform: perspective(1000px) rotateX(0deg) translateY(-5px);
+        box-shadow: 
+            0 15px 45px 0 rgba(31, 38, 135, 0.5),
+            inset 0 1px 0 0 rgba(255,255,255,0.1);
     }
     
     .main-title {
-        font-size: 3rem;
+        font-size: 3.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        background-size: 200% auto;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        background-clip: text;
         margin: 0;
         text-align: center;
+        animation: gradient 3s ease infinite;
+        letter-spacing: -1px;
+    }
+    
+    @keyframes gradient {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
     }
     
     .subtitle {
-        color: rgba(255,255,255,0.9);
+        color: rgba(255,255,255,0.8);
         text-align: center;
-        font-size: 1.2rem;
-        margin-top: 0.5rem;
+        font-size: 1.1rem;
+        margin-top: 0.8rem;
+        font-weight: 400;
+        letter-spacing: 0.5px;
     }
     
-    /* Card styling */
+    /* Glassmorphic cards with 3D depth */
     .metric-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
-        backdrop-filter: blur(10px);
-        padding: 1.5rem;
-        border-radius: 15px;
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        padding: 2rem;
+        border-radius: 20px;
+        border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 
+            0 8px 32px 0 rgba(31, 38, 135, 0.37),
+            inset 0 1px 0 0 rgba(255,255,255,0.1);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .metric-card:hover::before {
+        opacity: 1;
     }
     
     .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+        transform: translateY(-10px) scale(1.02);
+        box-shadow: 
+            0 20px 60px 0 rgba(31, 38, 135, 0.6),
+            inset 0 1px 0 0 rgba(255,255,255,0.2);
+        border-color: rgba(255,255,255,0.3);
     }
     
-    /* Upload section */
+    /* Upload section with pulse animation */
     .upload-section {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+        backdrop-filter: blur(20px);
+        padding: 3rem;
+        border-radius: 25px;
         border: 2px dashed rgba(255,255,255,0.3);
         text-align: center;
         margin: 2rem 0;
         transition: all 0.3s ease;
-    }
-    
-    .upload-section:hover {
-        border-color: rgba(255,255,255,0.6);
-        background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Custom dataframe styling */
-    .dataframe {
-        border-radius: 10px;
+        position: relative;
         overflow: hidden;
     }
     
-    /* Metric value styling */
+    .upload-section::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.1);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .upload-section:hover::before {
+        width: 500px;
+        height: 500px;
+    }
+    
+    .upload-section:hover {
+        border-color: rgba(102, 126, 234, 0.8);
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%);
+        transform: scale(1.02);
+    }
+    
+    /* Metric styling with glow */
     [data-testid="stMetricValue"] {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: white;
+        font-size: 2.8rem !important;
+        font-weight: 800 !important;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px rgba(255,255,255,0.5);
     }
     
     [data-testid="stMetricLabel"] {
-        color: rgba(255,255,255,0.8);
-        font-size: 1rem;
+        color: rgba(255,255,255,0.9) !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     
-    /* Button styling */
+    [data-testid="stMetricDelta"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    
+    /* Button with 3D effect */
     .stDownloadButton button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 10px;
-        font-weight: 600;
-        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 1rem 3rem !important;
+        border-radius: 15px !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stDownloadButton button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        transition: left 0.5s;
+    }
+    
+    .stDownloadButton button:hover::before {
+        left: 100%;
     }
     
     .stDownloadButton button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        transform: translateY(-3px) scale(1.05) !important;
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6) !important;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        backdrop-filter: blur(20px);
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.18);
+        overflow: hidden;
+    }
+    
+    /* Hide Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    /* Section headers */
+    h3 {
+        color: white !important;
+        font-weight: 700 !important;
+        font-size: 1.8rem !important;
+        margin-bottom: 1.5rem !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: linear-gradient(135deg, #ffffff 0%, #a0aec0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    /* Plotly charts container */
+    .js-plotly-plot {
+        border-radius: 20px;
+        overflow: hidden;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -239,36 +422,37 @@ class Predictor:
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1 class="main-title">🛒 Retail Demand Forecasting</h1>
-    <p class="subtitle">AI-Powered Predictions using Transformer + XGBoost Ensemble</p>
+    <h1 class="main-title">🛒 AI Demand Forecasting</h1>
+    <p class="subtitle">Next-Generation Predictions • Transformer × XGBoost Architecture</p>
 </div>
 """, unsafe_allow_html=True)
 
 if transformer_model is None:
-    st.error("⚠️ Models not loaded. Please check configuration.")
+    st.error("⚠️ System Error: Models not loaded")
     st.stop()
 
 # File upload
 st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-uploaded = st.file_uploader("📂 Upload your retail inventory CSV", type=["csv"], label_visibility="collapsed")
+uploaded = st.file_uploader("📂 Drop your CSV here or click to browse", type=["csv"], label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 if uploaded:
-    with st.spinner("🔮 Processing your data..."):
+    with st.spinner("🔮 AI is analyzing your data..."):
         df = pd.read_csv(uploaded)
         predictor = Predictor(transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length)
         results, mape, test_date = predictor.predict(df)
     
     if results is not None:
-        # Metrics row
-        st.markdown("### 📊 Performance Metrics")
+        # Metrics
+        st.markdown("### 📊 Performance Dashboard")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric(
-                label="🎯 MAPE Score",
+                label="🎯 MAPE",
                 value=f"{mape:.2f}%",
-                delta="Excellent" if mape <= 5 else "Good" if mape <= 10 else "Review"
+                delta="Excellent" if mape <= 5 else "Good" if mape <= 10 else "Review",
+                delta_color="normal" if mape <= 5 else "off"
             )
         
         with col2:
@@ -285,134 +469,273 @@ if uploaded:
             )
         
         with col4:
+            avg_demand = results['Demand Forecast'].mean()
             st.metric(
-                label="📅 Test Period",
-                value=f"{(pd.to_datetime(results['Date']).max() - pd.to_datetime(results['Date']).min()).days} days"
+                label="📦 Avg Demand",
+                value=f"{avg_demand:.0f}"
             )
         
         st.markdown("---")
         
-        # Visualizations
-        col1, col2 = st.columns([2, 1])
+        # Main visualization - Time series with connected lines
+        st.markdown("### 📈 Demand Forecast Timeline")
+        
+        # Use sample for better visibility
+        sample_size = min(200, len(results))
+        chart_data = results.head(sample_size).copy()
+        chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+        
+        fig = go.Figure()
+        
+        # Actual demand with markers
+        fig.add_trace(go.Scatter(
+            x=chart_data['Date'],
+            y=chart_data['Demand Forecast'],
+            name='Actual Demand',
+            mode='lines+markers',
+            line=dict(color='#667eea', width=3),
+            marker=dict(size=8, symbol='circle', line=dict(width=2, color='white')),
+            hovertemplate='<b>Actual</b><br>Date: %{x}<br>Demand: %{y:.2f}<extra></extra>'
+        ))
+        
+        # Predicted demand with markers
+        fig.add_trace(go.Scatter(
+            x=chart_data['Date'],
+            y=chart_data['Predicted_Demand'],
+            name='Predicted Demand',
+            mode='lines+markers',
+            line=dict(color='#f093fb', width=3, dash='dot'),
+            marker=dict(size=8, symbol='diamond', line=dict(width=2, color='white')),
+            hovertemplate='<b>Predicted</b><br>Date: %{x}<br>Demand: %{y:.2f}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white', size=12),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255,255,255,0.1)',
+                title='Date',
+                title_font=dict(size=14, color='rgba(255,255,255,0.8)')
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255,255,255,0.1)',
+                title='Demand',
+                title_font=dict(size=14, color='rgba(255,255,255,0.8)')
+            ),
+            hovermode='x unified',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                bgcolor='rgba(0,0,0,0.3)',
+                bordercolor='rgba(255,255,255,0.2)',
+                borderwidth=1
+            ),
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Multi-plot section
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 📈 Actual vs Predicted Demand")
+            st.markdown("### 🎯 Prediction Accuracy Distribution")
             
-            # Prepare data for chart
-            chart_data = results.head(100).copy()
-            chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+            # Error distribution histogram
+            errors = results['Demand Forecast'] - results['Predicted_Demand']
             
-            fig = go.Figure()
-            
-            fig.add_trace(go.Scatter(
-                x=chart_data['Date'],
-                y=chart_data['Demand Forecast'],
-                name='Actual Demand',
-                line=dict(color='#667eea', width=3),
-                mode='lines+markers'
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=chart_data['Date'],
-                y=chart_data['Predicted_Demand'],
-                name='Predicted Demand',
-                line=dict(color='#f093fb', width=3, dash='dash'),
-                mode='lines+markers'
-            ))
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='white'),
-                xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-                hovermode='x unified',
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.markdown("### 🔝 Top Products by Error")
-            
-            error_data = results.copy()
-            error_data['Error'] = abs(error_data['Demand Forecast'] - error_data['Predicted_Demand'])
-            top_errors = error_data.nlargest(10, 'Error')[['Product ID', 'Error']]
-            
-            fig2 = go.Figure(go.Bar(
-                x=top_errors['Error'],
-                y=top_errors['Product ID'],
-                orientation='h',
+            fig2 = go.Figure()
+            fig2.add_trace(go.Histogram(
+                x=errors,
+                nbinsx=50,
                 marker=dict(
-                    color=top_errors['Error'],
-                    colorscale='Reds',
-                    showscale=False
-                )
+                    color=errors,
+                    colorscale='RdYlGn_r',
+                    line=dict(width=1, color='white')
+                ),
+                hovertemplate='Error: %{x:.2f}<br>Count: %{y}<extra></extra>'
             ))
             
             fig2.update_layout(
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color='white'),
-                xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-                yaxis=dict(showgrid=False),
-                height=400
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.1)',
+                    title='Prediction Error'
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.1)',
+                    title='Frequency'
+                ),
+                height=400,
+                showlegend=False
             )
             
             st.plotly_chart(fig2, use_container_width=True)
         
+        with col2:
+            st.markdown("### 🔝 Top 10 Products by Error")
+            
+            error_data = results.copy()
+            error_data['Absolute_Error'] = abs(error_data['Demand Forecast'] - error_data['Predicted_Demand'])
+            top_errors = error_data.nlargest(10, 'Absolute_Error')[['Product ID', 'Absolute_Error']]
+            
+            fig3 = go.Figure()
+            fig3.add_trace(go.Bar(
+                x=top_errors['Absolute_Error'],
+                y=top_errors['Product ID'].astype(str),
+                orientation='h',
+                marker=dict(
+                    color=top_errors['Absolute_Error'],
+                    colorscale='Plasma',
+                    line=dict(width=1, color='white')
+                ),
+                hovertemplate='Product: %{y}<br>Error: %{x:.2f}<extra></extra>'
+            ))
+            
+            fig3.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.1)',
+                    title='Absolute Error'
+                ),
+                yaxis=dict(
+                    showgrid=False,
+                    title='Product ID'
+                ),
+                height=400,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig3, use_container_width=True)
+        
+        # 3D Scatter Plot
+        st.markdown("### 🎨 3D Prediction Analysis")
+        
+        sample_3d = results.sample(min(500, len(results))).copy()
+        sample_3d['Error'] = abs(sample_3d['Demand Forecast'] - sample_3d['Predicted_Demand'])
+        
+        fig4 = go.Figure(data=[go.Scatter3d(
+            x=sample_3d['Demand Forecast'],
+            y=sample_3d['Predicted_Demand'],
+            z=sample_3d['Error'],
+            mode='markers',
+            marker=dict(
+                size=5,
+                color=sample_3d['Error'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="Error", titleside="right", tickmode="linear"),
+                line=dict(width=0.5, color='white')
+            ),
+            hovertemplate='<b>Actual:</b> %{x:.2f}<br><b>Predicted:</b> %{y:.2f}<br><b>Error:</b> %{z:.2f}<extra></extra>'
+        )])
+        
+        fig4.update_layout(
+            scene=dict(
+                xaxis=dict(
+                    title='Actual Demand',
+                    backgroundcolor='rgba(0,0,0,0)',
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showbackground=True
+                ),
+                yaxis=dict(
+                    title='Predicted Demand',
+                    backgroundcolor='rgba(0,0,0,0)',
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showbackground=True
+                ),
+                zaxis=dict(
+                    title='Error',
+                    backgroundcolor='rgba(0,0,0,0)',
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showbackground=True
+                ),
+                bgcolor='rgba(0,0,0,0)'
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white'),
+            height=600
+        )
+        
+        st.plotly_chart(fig4, use_container_width=True)
+        
         st.markdown("---")
         
-        # Data table
-        st.markdown("### 📋 Detailed Predictions")
+        # Correlation heatmap
+        col1, col2 = st.columns([3, 2])
         
-        display = results[['Date', 'Store ID', 'Product ID', 'Demand Forecast', 'Predicted_Demand']].copy()
-        display['Error'] = abs(display['Demand Forecast'] - display['Predicted_Demand'])
-        display['Error_%'] = (display['Error'] / (display['Demand Forecast'] + 1e-8) * 100).round(2)
-        display = display.round(2)
+        with col1:
+            st.markdown("### 📊 Prediction vs Actual Scatter")
+            
+            fig5 = go.Figure()
+            
+            # Perfect prediction line
+            max_val = max(results['Demand Forecast'].max(), results['Predicted_Demand'].max())
+            min_val = min(results['Demand Forecast'].min(), results['Predicted_Demand'].min())
+            
+            fig5.add_trace(go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='rgba(255,255,255,0.3)', width=2, dash='dash'),
+                hoverinfo='skip'
+            ))
+            
+            # Actual scatter
+            fig5.add_trace(go.Scatter(
+                x=results['Demand Forecast'],
+                y=results['Predicted_Demand'],
+                mode='markers',
+                name='Predictions',
+                marker=dict(
+                    size=6,
+                    color=results['Predicted_Demand'],
+                    colorscale='Turbo',
+                    showscale=True,
+                    opacity=0.6,
+                    line=dict(width=0.5, color='white')
+                ),
+                hovertemplate='Actual: %{x:.2f}<br>Predicted: %{y:.2f}<extra></extra>'
+            ))
+            
+            fig5.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.1)',
+                    title='Actual Demand'
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.1)',
+                    title='Predicted Demand'
+                ),
+                height=500,
+                legend=dict(bgcolor='rgba(0,0,0,0.3)')
+            )
+            
+            st.plotly_chart(fig5, use_container_width=True)
         
-        st.dataframe(display, use_container_width=True, height=400)
-        
-        # Download button
-        csv = results.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="⬇️ Download Full Predictions",
-            data=csv,
-            file_name="demand_predictions.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
-else:
-    # Empty state with instructions
-    st.markdown("""
-    <div style='text-align: center; padding: 4rem 2rem; color: white;'>
-        <h2 style='color: rgba(255,255,255,0.9); margin-bottom: 1rem;'>👋 Welcome to Retail Demand Forecasting</h2>
-        <p style='font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 2rem;'>
-            Upload your retail inventory CSV to get AI-powered demand predictions
-        </p>
-        <div style='background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 2rem; max-width: 600px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.2);'>
-            <h3 style='color: white; margin-bottom: 1rem;'>📋 Required Columns:</h3>
-            <p style='color: rgba(255,255,255,0.8); line-height: 1.8;'>
-                Date • Store ID • Product ID • Category • Region<br>
-                Inventory Level • Units Sold • Units Ordered<br>
-                Demand Forecast • Price • Discount<br>
-                Weather Condition • Holiday/Promotion<br>
-                Competitor Pricing • Seasonality
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Footer
-st.markdown("""
-<div style='text-align: center; padding: 2rem; color: rgba(255,255,255,0.5); margin-top: 3rem;'>
-    <p>Powered by Transformer + XGBoost Ensemble • Expected MAPE: 3-5%</p>
-</div>
-""", unsafe_allow_html=True)
+        with col2:
+            st.markdown("### 📈 Error Statistics")
+            
+            # Calculate statistics
+            errors = results['Demand Forecast'] - results['Predicted_
