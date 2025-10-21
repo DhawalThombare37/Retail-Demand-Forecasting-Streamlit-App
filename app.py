@@ -4,94 +4,143 @@ import numpy as np
 import joblib
 import tensorflow as tf
 from sklearn.metrics import mean_absolute_percentage_error
+import plotly.graph_objects as go
+import plotly.express as px
 
-st.set_page_config(page_title="Demand Forecasting", layout="wide")
-st.title("🛒 Retail Demand Forecasting")
-st.markdown("**Transformer + XGBoost Ensemble | Expected MAPE: ~3%**")
+# Page config
+st.set_page_config(
+    page_title="Retail Demand Forecasting",
+    page_icon="🛒",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# Load models
-@st.cache_resource
-def load_models():
-    import os
-    import urllib.request
-    
-    # Check if files exist locally
-    required_files = {
-        'transformer_model.keras': 'Transformer Model',
-        'xgb_model.pkl': 'XGBoost Model',
-        'scaler.pkl': 'Scaler',
-        'training_columns.pkl': 'Training Columns',
-        'xgb_columns.pkl': 'XGBoost Columns',
-        'sequence_length.pkl': 'Sequence Length'
+# Custom CSS for modern UI
+st.markdown("""
+<style>
+    /* Main background gradient */
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
     
-    st.info("🔍 Checking for model files...")
+    /* Header styling */
+    .main-header {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
     
-    # Debug: Show current directory
-    current_files = os.listdir(".")
-    st.write(f"**Files in current directory ({len(current_files)}):**")
-    st.code("\n".join(sorted(current_files)))
+    .main-title {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+        text-align: center;
+    }
     
-    # Check each file
-    missing_files = []
-    file_sizes = {}
-    for file, name in required_files.items():
-        if os.path.exists(file):
-            size = os.path.getsize(file)
-            file_sizes[file] = size
-            st.success(f"✅ {name}: {file} ({size/1024/1024:.2f} MB)")
-        else:
-            missing_files.append(file)
-            st.error(f"❌ {name}: {file} - NOT FOUND")
+    .subtitle {
+        color: rgba(255,255,255,0.9);
+        text-align: center;
+        font-size: 1.2rem;
+        margin-top: 0.5rem;
+    }
     
-    if missing_files:
-        st.error(f"**Missing {len(missing_files)} file(s):**")
-        for f in missing_files:
-            st.write(f"- {f}")
-        st.info("""
-        **Solutions:**
-        1. **If transformer_model.keras > 100MB:** Use Git LFS
-           ```bash
-           git lfs install
-           git lfs track "*.keras"
-           git add .gitattributes
-           git add transformer_model.keras
-           git commit -m "Add large model file"
-           git push
-           ```
-        
-        2. **Alternative:** Upload to Google Drive/Dropbox and download in app
-        
-        3. **Check:** Files are committed and pushed to GitHub
-        """)
-        return None, None, None, None, None, None
+    /* Card styling */
+    .metric-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+        backdrop-filter: blur(10px);
+        padding: 1.5rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
     
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    }
+    
+    /* Upload section */
+    .upload-section {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-radius: 20px;
+        border: 2px dashed rgba(255,255,255,0.3);
+        text-align: center;
+        margin: 2rem 0;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-section:hover {
+        border-color: rgba(255,255,255,0.6);
+        background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Custom dataframe styling */
+    .dataframe {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    /* Metric value styling */
+    [data-testid="stMetricValue"] {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: white;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.8);
+        font-size: 1rem;
+    }
+    
+    /* Button styling */
+    .stDownloadButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stDownloadButton button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Load models silently
+@st.cache_resource
+def load_models():
     try:
-        st.info("📦 Loading models...")
-        transformer = tf.keras.models.load_model("transformer_model.keras")
-        st.success("✅ Transformer loaded")
-        
+        transformer = tf.keras.models.load_model("transformer_model.keras", compile=False)
         xgb = joblib.load("xgb_model.pkl")
-        st.success("✅ XGBoost loaded")
-        
         scaler = joblib.load("scaler.pkl")
         training_cols = joblib.load("training_columns.pkl")
         xgb_cols = joblib.load("xgb_columns.pkl")
         seq_len = joblib.load("sequence_length.pkl")
-        
-        st.success(f"✅ All models loaded! Train: {len(training_cols)} | XGB: {len(xgb_cols)} | Seq: {seq_len}")
         return transformer, xgb, scaler, training_cols, xgb_cols, seq_len
-        
-    except Exception as e:
-        st.error(f"❌ Error loading models: {e}")
-        st.exception(e)
+    except:
         return None, None, None, None, None, None
 
 transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
 
-if transformer_model is None:
-    st.stop()
-
+# Predictor class
 class Predictor:
     def __init__(self, transformer, xgb, scaler, train_cols, xgb_cols, seq_len):
         self.transformer = transformer
@@ -139,15 +188,10 @@ class Predictor:
         return np.array(X_seq), np.array(y_seq)
     
     def predict(self, df_input):
-        # Split into train/test like Colab (last 3 months for test)
         test_date = pd.to_datetime(df_input['Date']).max() - pd.DateOffset(months=3)
-        
-        st.info(f"📅 Using last 3 months as test set (from {test_date.date()} onwards)")
-        st.info(f"⚠️ Model was trained on last 3 months only!")
         
         X, y, df_orig = self.preprocess(df_input)
         
-        # CRITICAL: Filter to TEST set only (last 3 months like Colab)
         df_orig['Date'] = pd.to_datetime(df_orig['Date'])
         test_mask = df_orig['Date'] > test_date
         
@@ -155,190 +199,220 @@ class Predictor:
         y = y[test_mask].reset_index(drop=True)
         df_orig = df_orig[test_mask].reset_index(drop=True)
         
-        st.success(f"✅ Filtered to test set: {len(X)} rows")
-        
-        st.write("---")
-        st.write("### 🔍 DEBUG INFO")
-        
-        st.write(f"**1. After preprocessing:**")
-        st.write(f"- Generated features: {X.shape[1]}")
-        st.write(f"- Rows: {X.shape[0]}")
-        
-        generated_cols = list(X.columns)
-        st.write(f"**Generated columns ({len(generated_cols)}):**")
-        with st.expander("View all generated columns"):
-            st.code("\n".join(generated_cols))
-        
-        st.write(f"**2. Training columns expected: {len(self.training_columns)}**")
-        with st.expander("View expected training columns"):
-            st.code("\n".join(self.training_columns))
-        
-        # Find mismatches
-        missing_in_input = [col for col in self.training_columns if col not in generated_cols]
-        extra_in_input = [col for col in generated_cols if col not in self.training_columns]
-        
-        if missing_in_input:
-            st.error(f"⚠️ **Missing {len(missing_in_input)} columns** (will be filled with 0):")
-            with st.expander("View missing columns"):
-                st.code("\n".join(missing_in_input[:50]))
-        
-        if extra_in_input:
-            st.warning(f"⚠️ **Extra {len(extra_in_input)} columns** (will be removed):")
-            with st.expander("View extra columns"):
-                st.code("\n".join(extra_in_input[:50]))
-        
-        # Show one-hot encoded columns specifically
-        discount_cols_generated = [col for col in generated_cols if 'Discount_' in col]
-        discount_cols_expected = [col for col in self.training_columns if 'Discount_' in col]
-        
-        holiday_cols_generated = [col for col in generated_cols if 'Holiday/Promotion_' in col]
-        holiday_cols_expected = [col for col in self.training_columns if 'Holiday/Promotion_' in col]
-        
-        st.write("**3. One-hot encoding comparison:**")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Discount columns:**")
-            st.write(f"Generated: {discount_cols_generated}")
-            st.write(f"Expected: {discount_cols_expected}")
-        with col2:
-            st.write("**Holiday/Promotion columns:**")
-            st.write(f"Generated: {holiday_cols_generated}")
-            st.write(f"Expected: {holiday_cols_expected}")
-        
-        # Align to training columns
         for col in self.training_columns:
             if col not in X.columns:
                 X[col] = 0
         
         X = X[self.training_columns]
-        
-        st.success(f"✅ Aligned to {X.shape[1]} features")
-        
-        # Scale
         X_scaled = self.scaler.transform(X)
         
-        # Create sequences
         X_seq, y_seq = self.create_sequences(X_scaled, y.values)
         
         if len(X_seq) == 0:
-            st.error(f"Need at least {self.sequence_length + 1} rows")
-            return None, None
+            return None, None, None
         
-        st.write(f"**4. Sequences created:** {len(X_seq)}")
-        
-        # Transformer predictions
         trans_preds = self.transformer.predict(X_seq, verbose=0)
         
-        # Align for XGBoost
         X_aligned = X.iloc[self.sequence_length:].copy()
         y_aligned = y.values[self.sequence_length:].copy()
         df_aligned = df_orig.iloc[self.sequence_length:].copy()
         
-        # Add transformer predictions
         X_aligned['transformer_predictions_scaled'] = trans_preds.flatten()
         
-        st.write(f"**5. XGBoost input:**")
-        st.write(f"- Shape: {X_aligned.shape}")
-        st.write(f"- Expected columns: {len(self.xgb_columns)}")
-        st.write(f"- Current columns: {len(X_aligned.columns)}")
-        
-        xgb_cols_current = list(X_aligned.columns)
-        missing_xgb = [col for col in self.xgb_columns if col not in xgb_cols_current]
-        extra_xgb = [col for col in xgb_cols_current if col not in self.xgb_columns]
-        
-        if missing_xgb:
-            st.error(f"⚠️ Missing {len(missing_xgb)} XGBoost columns")
-        if extra_xgb:
-            st.warning(f"⚠️ Extra {len(extra_xgb)} XGBoost columns")
-        
-        # Align to XGBoost columns
         for col in self.xgb_columns:
             if col not in X_aligned.columns:
                 X_aligned[col] = 0
         
         X_aligned = X_aligned[self.xgb_columns]
-        
-        st.success(f"✅ XGBoost aligned to {X_aligned.shape[1]} features")
-        
-        # Final predictions
         final_preds = self.xgb.predict(X_aligned)
         
-        # Results
         df_results = df_aligned.reset_index(drop=True).copy()
         df_results['Predicted_Demand'] = final_preds
         
-        # MAPE
         epsilon = 1e-8
         y_safe = y_aligned.copy()
         y_safe[y_safe == 0] = epsilon
         mape = mean_absolute_percentage_error(y_safe, final_preds) * 100
         
-        st.write("---")
-        
-        return df_results, mape
+        return df_results, mape, test_date
 
-# Upload
-st.markdown("### 📁 Upload Data")
-uploaded = st.file_uploader("retail_store_inventory.csv", type=["csv"])
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1 class="main-title">🛒 Retail Demand Forecasting</h1>
+    <p class="subtitle">AI-Powered Predictions using Transformer + XGBoost Ensemble</p>
+</div>
+""", unsafe_allow_html=True)
+
+if transformer_model is None:
+    st.error("⚠️ Models not loaded. Please check configuration.")
+    st.stop()
+
+# File upload
+st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+uploaded = st.file_uploader("📂 Upload your retail inventory CSV", type=["csv"], label_visibility="collapsed")
+st.markdown('</div>', unsafe_allow_html=True)
 
 if uploaded:
-    try:
+    with st.spinner("🔮 Processing your data..."):
         df = pd.read_csv(uploaded)
-        
-        st.dataframe(df.head(10), use_container_width=True)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Rows", f"{len(df):,}")
-        with col2:
-            st.metric("Stores", df['Store ID'].nunique())
-        with col3:
-            st.metric("Products", df['Product ID'].nunique())
-        
-        # Show date range
-        df['Date'] = pd.to_datetime(df['Date'])
-        st.info(f"📅 Data range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-        
-        test_date = df['Date'].max() - pd.DateOffset(months=3)
-        st.warning(f"⚠️ Model will predict ONLY on test period: **{test_date.date()}** onwards (last 3 months)")
-        st.caption("This matches the training setup in Colab where XGBoost was trained on the last 3 months")
-        
         predictor = Predictor(transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length)
-        
-        with st.spinner("Predicting..."):
-            results, mape = predictor.predict(df)
-        
-        if results is not None:
-            st.markdown("---")
-            st.markdown("### 🎯 Results")
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                emoji = "🎉" if mape <= 5 else "✅" if mape <= 10 else "⚠️"
-                st.metric("MAPE", f"{mape:.2f}%")
-                st.caption(f"{emoji} Target: ~3%")
-            with col2:
-                st.metric("Predictions", f"{len(results):,}")
-            with col3:
-                st.metric("Accuracy", f"{max(0,100-mape):.1f}%")
-            
-            display = results[['Date','Store ID','Product ID','Demand Forecast','Predicted_Demand']].copy()
-            display['Error_%'] = (abs(display['Demand Forecast']-display['Predicted_Demand'])/(display['Demand Forecast']+1e-8)*100).round(2)
-            
-            st.dataframe(display.head(50), use_container_width=True)
-            
-            csv = results.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Predictions", csv, "predictions.csv", use_container_width=True)
-            
-    except Exception as e:
-        st.error(f"Error: {e}")
-        st.exception(e)
-else:
-    st.info("👆 Upload CSV")
-    st.warning("""
-    **Important:** This model was trained on the **last 3 months** of data.
+        results, mape, test_date = predictor.predict(df)
     
-    When you upload your CSV, predictions will only be generated for the last 3 months to match the training setup and achieve ~3% MAPE.
-    """)
+    if results is not None:
+        # Metrics row
+        st.markdown("### 📊 Performance Metrics")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                label="🎯 MAPE Score",
+                value=f"{mape:.2f}%",
+                delta="Excellent" if mape <= 5 else "Good" if mape <= 10 else "Review"
+            )
+        
+        with col2:
+            st.metric(
+                label="📈 Predictions",
+                value=f"{len(results):,}"
+            )
+        
+        with col3:
+            accuracy = max(0, 100 - mape)
+            st.metric(
+                label="✓ Accuracy",
+                value=f"{accuracy:.1f}%"
+            )
+        
+        with col4:
+            st.metric(
+                label="📅 Test Period",
+                value=f"{(pd.to_datetime(results['Date']).max() - pd.to_datetime(results['Date']).min()).days} days"
+            )
+        
+        st.markdown("---")
+        
+        # Visualizations
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("### 📈 Actual vs Predicted Demand")
+            
+            # Prepare data for chart
+            chart_data = results.head(100).copy()
+            chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Scatter(
+                x=chart_data['Date'],
+                y=chart_data['Demand Forecast'],
+                name='Actual Demand',
+                line=dict(color='#667eea', width=3),
+                mode='lines+markers'
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=chart_data['Date'],
+                y=chart_data['Predicted_Demand'],
+                name='Predicted Demand',
+                line=dict(color='#f093fb', width=3, dash='dash'),
+                mode='lines+markers'
+            ))
+            
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
+                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
+                hovermode='x unified',
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("### 🔝 Top Products by Error")
+            
+            error_data = results.copy()
+            error_data['Error'] = abs(error_data['Demand Forecast'] - error_data['Predicted_Demand'])
+            top_errors = error_data.nlargest(10, 'Error')[['Product ID', 'Error']]
+            
+            fig2 = go.Figure(go.Bar(
+                x=top_errors['Error'],
+                y=top_errors['Product ID'],
+                orientation='h',
+                marker=dict(
+                    color=top_errors['Error'],
+                    colorscale='Reds',
+                    showscale=False
+                )
+            ))
+            
+            fig2.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
+                yaxis=dict(showgrid=False),
+                height=400
+            )
+            
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Data table
+        st.markdown("### 📋 Detailed Predictions")
+        
+        display = results[['Date', 'Store ID', 'Product ID', 'Demand Forecast', 'Predicted_Demand']].copy()
+        display['Error'] = abs(display['Demand Forecast'] - display['Predicted_Demand'])
+        display['Error_%'] = (display['Error'] / (display['Demand Forecast'] + 1e-8) * 100).round(2)
+        display = display.round(2)
+        
+        st.dataframe(display, use_container_width=True, height=400)
+        
+        # Download button
+        csv = results.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="⬇️ Download Full Predictions",
+            data=csv,
+            file_name="demand_predictions.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
 
-st.caption("Expected MAPE: 3-5%")
+else:
+    # Empty state with instructions
+    st.markdown("""
+    <div style='text-align: center; padding: 4rem 2rem; color: white;'>
+        <h2 style='color: rgba(255,255,255,0.9); margin-bottom: 1rem;'>👋 Welcome to Retail Demand Forecasting</h2>
+        <p style='font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 2rem;'>
+            Upload your retail inventory CSV to get AI-powered demand predictions
+        </p>
+        <div style='background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 2rem; max-width: 600px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.2);'>
+            <h3 style='color: white; margin-bottom: 1rem;'>📋 Required Columns:</h3>
+            <p style='color: rgba(255,255,255,0.8); line-height: 1.8;'>
+                Date • Store ID • Product ID • Category • Region<br>
+                Inventory Level • Units Sold • Units Ordered<br>
+                Demand Forecast • Price • Discount<br>
+                Weather Condition • Holiday/Promotion<br>
+                Competitor Pricing • Seasonality
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Footer
+st.markdown("""
+<div style='text-align: center; padding: 2rem; color: rgba(255,255,255,0.5); margin-top: 3rem;'>
+    <p>Powered by Transformer + XGBoost Ensemble • Expected MAPE: 3-5%</p>
+</div>
+""", unsafe_allow_html=True)
