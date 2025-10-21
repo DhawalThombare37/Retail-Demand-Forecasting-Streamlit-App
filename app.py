@@ -43,12 +43,30 @@ if uploaded_file is not None:
     numeric_cols = df_full.select_dtypes(include=np.number).columns.tolist()
     df_full[numeric_cols] = scaler.transform(df_full[numeric_cols])
 
-    # -----------------------
-    # Transformer predictions
-    # -----------------------
-    transformer_input = df_full.values
-    transformer_preds = transformer_model.predict(transformer_input, verbose=0)
-    df_full["Transformer_Pred"] = transformer_preds
+   # -----------------------
+# Transformer predictions with sequence
+# -----------------------
+def create_sequences(df, seq_length, features):
+    data = df[features].values
+    X_seq = []
+    for i in range(len(data) - seq_length + 1):
+        X_seq.append(data[i:i+seq_length])
+    return np.array(X_seq)
+
+# Use the numeric/scaled features for sequences
+features_for_seq = training_columns  # should match what was used in training
+X_seq = create_sequences(df_full, sequence_length, features_for_seq)
+
+# Transformer predicts only on sequences
+transformer_preds_seq = transformer_model.predict(X_seq, verbose=0)
+
+# Map transformer predictions back to dataframe
+# For the first (sequence_length -1) rows, fill with NaN or replicate first prediction
+transformer_preds_full = np.concatenate(
+    [np.full((sequence_length-1,), transformer_preds_seq[0]), transformer_preds_seq.flatten()]
+)
+df_full["Transformer_Pred"] = transformer_preds_full
+
 
     # -----------------------
     # XGBoost prediction
