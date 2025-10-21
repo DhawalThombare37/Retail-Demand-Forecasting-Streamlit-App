@@ -12,25 +12,49 @@ from datetime import datetime
 # -----------------------
 # Page config
 # -----------------------
-st.set_page_config(page_title="Retail Demand Forecasting", layout="wide", page_icon="🛒")
+st.set_page_config(page_title="Retail Demand Forecasting — Glassmorphic", layout="wide", page_icon="🛒")
 
 # -----------------------
-# Custom CSS for glassmorphic look and uploader text
+# Custom CSS (glassmorphic, vibrant cards, background glows)
 # -----------------------
 st.markdown("""
 <style>
-div.stFileUploader > label > div { color: black !important; font-weight: 600; }
-.glass-strong { background: rgba(255,255,255,0.05); border-radius: 18px; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(12px); padding:18px; }
-.metric { padding:18px; border-radius:14px; transition: transform 0.25s; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:white; }
-.metric .label { color: rgba(255,255,255,0.7); font-size:0.9rem; }
+:root{
+    --glass-blur: 12px;
+    --muted: rgba(255,255,255,0.6);
+}
+.stApp {
+    background: radial-gradient(1000px 400px at 10% 10%, rgba(142,68,173,0.12), transparent 8%),
+                radial-gradient(900px 300px at 95% 90%, rgba(30,144,255,0.10), transparent 5%),
+                linear-gradient(180deg, #0f1226 0%, #071028 100%);
+    color: #e9eef8;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+}
+.glass-strong {
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.035));
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(var(--glass-blur));
+    padding:18px;
+}
+.metric {
+    padding:18px; border-radius:14px; transition: transform 0.25s; 
+    border:1px solid rgba(255,255,255,0.04);
+    background: linear-gradient(135deg, rgba(255,255,255,0.022), rgba(255,255,255,0.01));
+    color:white; box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+}
+.metric:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 18px 40px rgba(2,6,23,0.6);}
+.metric .label { color: rgba(255,255,255,0.75); font-size:0.9rem; }
 .metric .value { font-weight:700; font-size:1.5rem; margin-top:6px; }
+div.stFileUploader > label > div { color: black !important; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------
 # Header
 # -----------------------
-st.markdown("<h2>Retail Demand Forecasting Dashboard</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='color:white;'>Retail Demand Forecasting Dashboard</h2>", unsafe_allow_html=True)
 
 # -----------------------
 # Model loader
@@ -126,23 +150,27 @@ if uploaded_file and models_loaded:
     # Plot 1: Actual vs Predicted Demand
     # -----------------------
     agg = results.groupby('Date')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
-                              name='Actual', line=dict(color='cyan', width=3)))
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
-                              name='Predicted', line=dict(color='magenta', width=3, dash='dash')))
-    fig1.update_layout(title="Actual vs Predicted Demand",
-                       template='plotly_dark',
-                       paper_bgcolor='rgba(0,0,0,0)',
-                       plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig1, use_container_width=True)
+    with st.container():
+        st.markdown("<div class='glass-strong' style='padding:16px'><h4>Actual vs Predicted Demand</h4></div>", unsafe_allow_html=True)
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
+                                  name='Actual', line=dict(color='cyan', width=3)))
+        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
+                                  name='Predicted', line=dict(color='magenta', width=3, dash='dash')))
+        fig1.update_layout(template='plotly_dark',
+                           paper_bgcolor='rgba(0,0,0,0)',
+                           plot_bgcolor='rgba(0,0,0,0)',
+                           margin=dict(t=30,b=10,l=10,r=10))
+        st.plotly_chart(fig1, use_container_width=True)
 
     # -----------------------
     # Plot 2: Product-wise Average Prediction Error
     # -----------------------
     results['abs_error'] = abs(results['Demand Forecast'] - results['Predicted_Demand'])
     product_error = results.groupby('Product ID')['abs_error'].mean().reset_index()
-    fig2 = px.line(product_error, x='Product ID', y='abs_error', markers=True, 
-                   title='Product-wise Average Prediction Error', template='plotly_dark')
-    fig2.update_traces(line=dict(color='orange', width=3))
-    st.plotly_chart(fig2, use_container_width=True)
+    with st.container():
+        st.markdown("<div class='glass-strong' style='padding:16px'><h4>Product-wise Average Prediction Error</h4></div>", unsafe_allow_html=True)
+        fig2 = px.line(product_error, x='Product ID', y='abs_error', markers=True, template='plotly_dark')
+        fig2.update_traces(line=dict(color='orange', width=3))
+        fig2.update_layout(margin=dict(t=30,b=10,l=10,r=10))
+        st.plotly_chart(fig2, use_container_width=True)
