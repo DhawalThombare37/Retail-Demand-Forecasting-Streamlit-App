@@ -2,75 +2,87 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from sklearn.metrics import mean_absolute_percentage_error
 from tensorflow.keras.models import load_model
+from sklearn.metrics import mean_absolute_percentage_error
 
-st.set_page_config(page_title="Retail Demand Forecasting", layout="wide")
 st.title("Retail Demand Forecasting App")
 
-# Upload CSV
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-if uploaded_file is not None:
+# --- UPLOAD CSV ---
+uploaded_file = st.file_uploader("Upload your full CSV file", type=["csv"])
+if uploaded_file:
     df_full = pd.read_csv(uploaded_file)
     st.success(f"✅ File loaded successfully — Shape: {df_full.shape}")
 
-    # Load models and supporting files
+    # --- LOAD MODELS AND ARTIFACTS ---
     transformer_model = load_model("transformer_model.keras")
     xgb_model = joblib.load("xgb_model.pkl")
     scaler = joblib.load("scaler.pkl")
     training_columns = joblib.load("training_columns.pkl")
-    sequence_length = joblib.load("sequence_length.pkl")
-    test_indices = joblib.load("test_indices.pkl")  # indices of test rows used in Colab
+    sequence_length = joblib.load("sequence_length.pkl")  # if used in transformer
 
-    # Make a copy for processing
-    df = df_full.copy()
-    df['Date'] = pd.to_datetime(df['Date'])
-    df['year'] = df['Date'].dt.year
-    df['month'] = df['Date'].dt.month
-    df['day'] = df['Date'].dt.day
-    df['dayofweek'] = df['Date'].dt.dayofweek
-    df['weekofyear'] = df['Date'].dt.isocalendar().week
+    # --- FEATURE ENGINEERING (same as Colab) ---
+    df_full['Date'] = pd.to_datetime(df_full['Date'])
+    df_full['year'] = df_full['Date'].dt.year
+    df_full['month'] = df_full['Date'].dt.month
+    df_full['day'] = df_full['Date'].dt.day
+    df_full['dayofweek'] = df_full['Date'].dt.dayofweek
+    df_full['weekofyear'] = df_full['Date'].dt.isocalendar().week.astype(int)
 
-    # One-hot encode categorical columns
-    df = pd.get_dummies(df, columns=['Discount', 'Holiday/Promotion'], drop_first=False)
+    # Lag features
+    for col in ['Inventory Level','Units Sold','Units Ordered','Demand Forecast','Price']:
+        df_full[f'{col}_lag_7'] = df_full[col].shift(7)
+        df_full[f'{col}_rolling_mean_7'] = df_full[col].rolling(7).mean()
+        df_full[f'{col}_rolling_std_7'] = df_full[col].rolling(7).std()
 
-    # Lag and rolling features
-    for col in ['Inventory Level', 'Units Sold', 'Units Ordered', 'Demand Forecast', 'Price']:
-        df[f"{col}_lag_7"] = df[col].shift(7)
-        df[f"{col}_rolling_mean_7"] = df[col].rolling(window=7).mean()
-        df[f"{col}_rolling_std_7"] = df[col].rolling(window=7).std()
-    df.fillna(0, inplace=True)
+    # One-hot encoding for categorical
+    df_full = pd.get_dummies(df_full, columns=['Discount', 'Holiday/Promotion'], drop_first=False)
 
-    # Ensure all training columns exist in df
-    for col in training_columns:
-        if col not in df.columns:
-            df[col] = 0
+    # Fill any NaNs from lag/rolling
+    df_full.fillna(0, inplace=True)
 
-    # Keep only training columns and correct order
-    df_scaled = pd.DataFrame(scaler.transform(df[training_columns]), columns=training_columns)
+    # --- SCALE TRANSFORMER INPUT ---
+    transformer_features = [c for c in df_full.columns if c in training_columns and c not in ['Transformer_Pred']]
+    df_scaled = pd.DataFrame(scaler.transform(df_full[transformer_features]), columns=transformer_features)
 
-    # Prepare transformer input
-    transformer_input = df_scaled.to_numpy().reshape(-1, sequence_length, len(training_columns))
+    # --- TRANSFORMER PREDICTIONS ---
+    transformer_input = []
+    for i in range(len(df_scaled) - sequence_length + 1):
+        transformer_input.append(df_scaled.iloc[i:i+sequence_length].values)
+    transformer_input = np.array(transformer_input)
+    
     transformer_preds = transformer_model.predict(transformer_input, verbose=0)
-    df_scaled['transformer_predictions_scaled'] = transformer_preds.flatten()
+    
+    # Align transformer predictions with original df
+    transformer_preds_aligned = np.zeros(len(df_full))
+    transformer_preds_aligned[sequence_length-1:] = transformer_preds.flatten()
+    df_full['Transformer_Pred'] = transformer_preds_aligned
 
-    # Prepare XGBoost features
+    # --- ALIGN FEATURES FOR XGBOOST ---
+    # Ensure columns match training columns
+    df_aligned = df_full.copy()
     for col in training_columns:
-        if col not in df_scaled.columns:
-            df_scaled[col] = 0
-    X_xgb = df_scaled[training_columns]
+        if col not in df_aligned.columns:
+            df_aligned[col] = 0  # add missing column
+    df_aligned = df_aligned[training_columns]
 
-    # Predict with XGBoost
-    final_preds = xgb_model.predict(X_xgb)
-    df_full['Predicted_Demand'] = final_preds
+    # --- SELECT TEST ROWS SAME AS COLAB ---
+    test_size = 7300  # replace with your Colab test size
+    train_size = len(df_full) - test_size
+    test_indices = list(range(train_size, len(df_full)))
+    df_test = df_aligned.iloc[test_indices]
+    y_true = df_full['Demand Forecast'].iloc[test_indices].values
 
-    st.subheader("Predictions on Uploaded Data")
-    st.dataframe(df_full)
+    # --- PREDICT WITH XGBOOST ---
+    final_preds = xgb_model.predict(df_test)
 
-    # Compute MAPE only on test rows (from Colab)
-    if 'Demand Forecast' in df_full.columns:
-        test_df = df_full.iloc[test_indices]  # use the same test rows as Colab
-        test_mape = mean_absolute_percentage_error(test_df['Demand Forecast'], test_df['Predicted_Demand'])
-        st.success(f"✅ Test Set MAPE: {test_mape*100:.2f}%")
-    else:
-        st.warning("Demand Forecast column not found — cannot compute test MAPE.")
+    # --- CALCULATE TEST MAPE ---
+    mape_test = mean_absolute_percentage_error(y_true, final_preds) * 100
+
+    # --- DISPLAY RESULTS ---
+    df_results = df_full.copy()
+    df_results['Predicted_Demand'] = 0
+    df_results.iloc[test_indices, df_results.columns.get_loc('Predicted_Demand')] = final_preds
+
+    st.subheader("Predictions on Test Rows")
+    st.dataframe(df_results.iloc[test_indices][['Date', 'Store ID', 'Product ID', 'Demand Forecast', 'Predicted_Demand']])
+    st.markdown(f"### ✅ MAPE on Test Data: {mape_test:.2f}%")
