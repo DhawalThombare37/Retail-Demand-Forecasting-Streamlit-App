@@ -21,7 +21,7 @@ def load_models():
 transformer_model, xgb_model, scaler, training_columns, sequence_length = load_models()
 
 st.title("🧠 Retail Demand Forecasting (Transformer + XGBoost)")
-st.caption("Upload your retail dataset — same structure as training CSV — to reproduce Colab 3% MAPE performance.")
+st.caption("Upload your retail dataset (same as Colab structure) — model automatically matches the correct test portion.")
 
 uploaded_file = st.file_uploader("📂 Upload your retail_store_inventory.csv", type=["csv"])
 
@@ -31,15 +31,13 @@ uploaded_file = st.file_uploader("📂 Upload your retail_store_inventory.csv", 
 def preprocess_input(df: pd.DataFrame, training_columns):
     df = df.copy()
 
-    # Fill or encode categorical columns if present
     cat_cols = ["Category", "Region", "Weather Condition", "Holiday/Promotion", "Seasonality"]
     for c in cat_cols:
-        if c in df.columns:
-            df[c] = df[c].astype(str)
-        else:
+        if c not in df.columns:
             df[c] = "Unknown"
+        df[c] = df[c].astype(str)
 
-    # Convert Date to datetime and numeric if applicable
+    # Date processing
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
         df["Month"] = df["Date"].dt.month
@@ -47,70 +45,66 @@ def preprocess_input(df: pd.DataFrame, training_columns):
         df["Weekday"] = df["Date"].dt.weekday
         df.drop(columns=["Date"], inplace=True, errors="ignore")
 
-    # One-hot encode categoricals
     df_processed = pd.get_dummies(df, drop_first=True)
 
-    # Align columns with training columns
+    # Align with training columns
     for col in training_columns:
         if col not in df_processed.columns:
             df_processed[col] = 0
 
-    # Drop unknown extras
     df_processed = df_processed[training_columns]
 
     return df_processed
 
 
 # -----------------------------
-# Prediction function
+# Prediction pipeline
 # -----------------------------
 def predict_mape(df_input):
-    # Preprocess uploaded data
     df_processed = preprocess_input(df_input, training_columns)
-
-    # Apply scaler
     X_scaled = scaler.transform(df_processed)
 
-    # Use only last N rows as per test size (to match Colab)
-    N = len(X_scaled)
-    if N > 500:
-        X_scaled = X_scaled[-500:]  # assuming test size similar to Colab
+    # --- Handle full dataset automatically ---
+    total_rows = len(df_processed)
+    test_size = 500  # same as Colab test length
+    if total_rows > test_size + sequence_length:
+        X_scaled = X_scaled[-(test_size + sequence_length):]
+        df_input = df_input.iloc[-(test_size + sequence_length):].reset_index(drop=True)
 
-    # Create sequential inputs for Transformer
+    # Build sequential input for Transformer
     X_seq = []
     for i in range(len(X_scaled) - sequence_length + 1):
         X_seq.append(X_scaled[i:i + sequence_length])
     X_seq = np.array(X_seq)
 
-    # Transformer inference
-    transformer_preds = transformer_model.predict(X_seq, verbose=0)
-    transformer_preds = transformer_preds.flatten()
+    transformer_preds = transformer_model.predict(X_seq, verbose=0).flatten()
 
-    # Align with main dataframe for XGB
-    df_aligned = df_processed.iloc[sequence_length - 1:].copy()
+    # Align lengths
+    df_aligned = df_input.iloc[sequence_length - 1:].copy()
     df_aligned["Transformer_Pred"] = transformer_preds
 
-    # XGBoost inference
-    xgb_preds = xgb_model.predict(df_aligned)
+    # XGB Prediction
+    X_xgb = preprocess_input(df_aligned, training_columns)
+    X_xgb["Transformer_Pred"] = transformer_preds
+    xgb_preds = xgb_model.predict(X_xgb)
 
-    # Final blended prediction (same ratio used in Colab)
     final_preds = 0.6 * transformer_preds[-len(xgb_preds):] + 0.4 * xgb_preds
 
-    # Calculate MAPE (assume actuals available)
-    if "Units Sold" in df_input.columns:
-        y_true = df_input["Units Sold"].iloc[-len(final_preds):].values
+    # Match lengths properly
+    results = df_aligned.iloc[-len(final_preds):].copy()
+    results["Predicted_Units_Sold"] = final_preds
+
+    if "Units Sold" in results.columns:
+        y_true = results["Units Sold"].values
         mape = mean_absolute_percentage_error(y_true, final_preds) * 100
     else:
         mape = None
-
-    results = df_input.iloc[-len(final_preds):].copy()
-    results["Predicted_Units_Sold"] = final_preds
 
     return results, mape
 
 
 # -----------------------------
-# Run app
+# Streamlit UI
 # -----------------------------
 if uploaded_file is not None:
     df_input = pd.read_csv(uploaded_file)
@@ -125,7 +119,7 @@ if uploaded_file is not None:
             if mape < 5:
                 st.balloons()
         else:
-            st.info("Actual 'Units Sold' not found — MAPE cannot be computed.")
+            st.info("Actual 'Units Sold' not found — MAPE not computed.")
 
         st.dataframe(df_results.tail(20))
 
