@@ -1,10 +1,7 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import tensorflow as tf
-from sklearn.metrics import mean_absolute_percentage_error
-import plotly.express as px
 import plotly.graph_objects as go
 
 # -----------------------
@@ -13,131 +10,121 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Retail Demand Forecasting", layout="wide", page_icon="🛒")
 
 # -----------------------
-# Glassmorphic + custom CSS (readable text)
+# CSS: Glassmorphism + styling
 # -----------------------
 st.markdown("""
 <style>
-@keyframes gradientGlow {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+.stApp {
+    background: radial-gradient(1000px 400px at 10% 10%, rgba(142,68,173,0.12), transparent 8%),
+                radial-gradient(900px 300px at 95% 90%, rgba(30,144,255,0.10), transparent 5%),
+                linear-gradient(180deg, #0f1226 0%, #071028 100%);
+    color: #e9eef8;
+    font-family: 'Inter', sans-serif;
+    min-height:100vh;
 }
-
+.glass {
+    background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02));
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    padding:16px;
+    margin-bottom:16px;
+}
+.stDataFrame table { border-radius:10px !important; overflow:hidden; }
 .metric {
     padding:18px; border-radius:14px; border:1px solid rgba(255,255,255,0.04);
     background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-    box-shadow: 0 6px 18px rgba(2,6,23,0.45);
-    position: relative; overflow: hidden;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.45); margin-bottom:12px; position: relative;
 }
-.metric .label { color: rgba(255,255,255,0.85); font-size:0.95rem; font-weight:600;}
+.metric .label { color: rgba(255,255,255,0.85); font-size:0.95rem; font-weight:600; }
 .metric .value { font-weight:700; font-size:1.6rem; color:white; margin-top:6px; }
-
-.metric::before {
-    content:""; position:absolute; top:0; left:-50%; width:200%; height:100%;
-    background: linear-gradient(270deg, rgba(30,144,255,0.3), rgba(142,68,173,0.3), rgba(44,230,183,0.3));
-    background-size: 400% 400%;
-    animation: gradientGlow 6s ease infinite;
-    filter: blur(25px);
-    z-index:0;
-    pointer-events:none;
-}
-
-.metric > * { position: relative; z-index:1; }
+h2, h3 { color:white; }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------
 # Header
 # -----------------------
-st.markdown("<h2 style='color:white; margin-bottom:2px;'>Retail Demand Forecasting</h2>", unsafe_allow_html=True)
-st.markdown("<p style='color:var(--muted); margin-top:-8px;'>Transformer + XGBoost Ensemble • Glassmorphic Dashboard</p>", unsafe_allow_html=True)
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<h2>🛒 Retail Demand Forecasting</h2>", unsafe_allow_html=True)
+st.markdown("<p style='color:rgba(255,255,255,0.6)'>Upload CSV containing columns: Date, Product_ID, Actual, Predicted</p>", unsafe_allow_html=True)
 
 # -----------------------
-# Uploader
+# File uploader
 # -----------------------
-st.markdown("<div class='glass-strong'><h4 style='color:white;'>Upload your Retail CSV</h4><p class='muted'>Must contain Date, Store ID, Product ID, Demand Forecast</p></div>", unsafe_allow_html=True)
-uploaded = st.file_uploader("", type=['csv'])
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    required_cols = ['Date','Product_ID','Actual','Predicted']
+    if not all(col in df.columns for col in required_cols):
+        st.error(f"CSV must contain columns: {', '.join(required_cols)}")
+    else:
+        df['Date'] = pd.to_datetime(df['Date'])
+        
+        # -----------------------
+        # Show uploaded data info
+        # -----------------------
+        st.markdown("<div class='glass'><strong>Uploaded Data Preview:</strong></div>", unsafe_allow_html=True)
+        st.dataframe(df.head())
 
-if uploaded:
-    df = pd.read_csv(uploaded)
-    df['Date'] = pd.to_datetime(df['Date'])
+        st.markdown("<div class='glass'><strong>Data Info:</strong></div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        - **Total rows uploaded:** {df.shape[0]}  
+        - **Total unique products:** {df['Product_ID'].nunique()}  
+        - **Columns in dataset:** {', '.join(df.columns)}  
+        - **Target being predicted:** 'Predicted' column  
+        """, unsafe_allow_html=True)
 
-    # -----------------------
-    # Summary metrics
-    # -----------------------
-    col1, col2, col3 = st.columns(3)
-    col1.markdown(f"<div class='metric'><div class='label'>Total Rows</div><div class='value'>{len(df):,}</div></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='metric'><div class='label'>Unique Stores</div><div class='value'>{df['Store ID'].nunique() if 'Store ID' in df.columns else 'N/A'}</div></div>", unsafe_allow_html=True)
-    col3.markdown(f"<div class='metric'><div class='label'>Unique Products</div><div class='value'>{df['Product ID'].nunique() if 'Product ID' in df.columns else 'N/A'}</div></div>", unsafe_allow_html=True)
+        # -----------------------
+        # Metrics
+        # -----------------------
+        total_rows = df.shape[0]
+        total_products = df['Product_ID'].nunique()
+        overall_mape = np.mean(np.abs((df['Actual'] - df['Predicted'])/df['Actual'])) * 100
+        
+        col1, col2, col3 = st.columns(3)
+        col1.markdown(f"<div class='metric'><div class='label'>Total Rows</div><div class='value'>{total_rows}</div></div>", unsafe_allow_html=True)
+        col2.markdown(f"<div class='metric'><div class='label'>Total Products</div><div class='value'>{total_products}</div></div>", unsafe_allow_html=True)
+        col3.markdown(f"<div class='metric'><div class='label'>Overall MAPE (%)</div><div class='value'>{overall_mape:.2f}</div></div>", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+        # -----------------------
+        # 1. Actual vs Predicted (Line Chart)
+        # -----------------------
+        df_time = df.groupby('Date').agg({'Actual':'sum','Predicted':'sum'}).reset_index()
+        fig_actual_pred = go.Figure()
+        fig_actual_pred.add_trace(go.Scatter(
+            x=df_time['Date'], y=df_time['Actual'], mode='lines+markers',
+            name='Actual', line=dict(color='cyan', width=3), marker=dict(size=6)
+        ))
+        fig_actual_pred.add_trace(go.Scatter(
+            x=df_time['Date'], y=df_time['Predicted'], mode='lines+markers',
+            name='Predicted', line=dict(color='magenta', width=3), marker=dict(size=6)
+        ))
+        fig_actual_pred.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis_title="Date",
+            yaxis_title="Total Demand",
+            legend=dict(font=dict(color='white'))
+        )
+        st.markdown("<div class='glass'><strong>Actual vs Predicted Demand Over Time</strong></div>", unsafe_allow_html=True)
+        st.plotly_chart(fig_actual_pred, use_container_width=True)
 
-    # -----------------------
-    # Predictions (placeholder logic, replace with your Predictor)
-    # -----------------------
-    # For demonstration, we simulate predictions
-    df['Predicted_Demand'] = df['Demand Forecast'] * np.random.uniform(0.95,1.05,len(df))
-    df['Error_%'] = (abs(df['Demand Forecast'] - df['Predicted_Demand'])/(df['Demand Forecast']+1e-8)*100).round(2)
-    mape = df['Error_%'].mean()
-    accuracy = 100 - mape
-
-    # -----------------------
-    # Prediction Summary cards
-    # -----------------------
-    col1, col2, col3, col4 = st.columns([0.22,0.22,0.28,0.28])
-    col1.markdown(f"<div class='metric'><div class='label'>MAPE</div><div class='value'>{mape:.2f}%</div></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='metric'><div class='label'>Predictions</div><div class='value'>{len(df):,}</div></div>", unsafe_allow_html=True)
-    col3.markdown(f"<div class='metric'><div class='label'>Accuracy</div><div class='value'>{accuracy:.1f}%</div></div>", unsafe_allow_html=True)
-    col4.markdown(f"<div class='metric'><div class='label'>Date Range</div><div class='value'>{df['Date'].min().date()} → {df['Date'].max().date()}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # -----------------------
-    # Plot 1: Actual vs Predicted
-    # -----------------------
-    fig1 = go.Figure()
-    agg = df.groupby('Date')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines', name='Actual', line=dict(width=2.5)))
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines', name='Predicted', line=dict(width=2.5,dash='dash')))
-    fig1.update_layout(title="Actual vs Predicted Demand Over Time", template='plotly_dark', margin=dict(t=50))
-    st.plotly_chart(fig1, use_container_width=True)
-
-    # -----------------------
-    # Plot 2: Error Distribution
-    # -----------------------
-    fig2 = px.histogram(df, x='Error_%', nbins=35, title="Prediction Error Distribution", labels={'Error_%':'Error %'})
-    fig2.update_layout(template='plotly_dark', margin=dict(t=50))
-    st.plotly_chart(fig2, use_container_width=True)
-
-    # -----------------------
-    # Plot 3: Top products by average error
-    # -----------------------
-    top_err = df.groupby('Product ID')['Error_%'].mean().nlargest(10).reset_index()
-    fig3 = px.bar(top_err, x='Product ID', y='Error_%', title="Top 10 Products by Avg Error (%)")
-    fig3.update_layout(template='plotly_dark', margin=dict(t=50))
-    st.plotly_chart(fig3, use_container_width=True)
-
-    # -----------------------
-    # Plot 4: Store-wise total demand
-    # -----------------------
-    store_totals = df.groupby('Store ID')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
-    fig4 = go.Figure()
-    fig4.add_trace(go.Bar(x=store_totals['Store ID'], y=store_totals['Demand Forecast'], name='Actual'))
-    fig4.add_trace(go.Bar(x=store_totals['Store ID'], y=store_totals['Predicted_Demand'], name='Predicted'))
-    fig4.update_layout(title="Store-wise Total Demand", template='plotly_dark', barmode='group', margin=dict(t=50))
-    st.plotly_chart(fig4, use_container_width=True)
-
-    # -----------------------
-    # Plot 5: Product-wise average prediction error
-    # -----------------------
-    product_err = df.groupby('Product ID')['Error_%'].mean().reset_index()
-    fig5 = px.line(product_err, x='Product ID', y='Error_%', title="Product-wise Average Prediction Error (%)", markers=True)
-    fig5.update_layout(template='plotly_dark', margin=dict(t=50))
-    st.plotly_chart(fig5, use_container_width=True)
-
-    # -----------------------
-    # Data table + download
-    # -----------------------
-    st.dataframe(df[['Date','Store ID','Product ID','Demand Forecast','Predicted_Demand','Error_%']].sort_values('Date',ascending=False), use_container_width=True)
-    st.download_button("⬇️ Download Predictions (CSV)", df.to_csv(index=False).encode('utf-8'), "predictions.csv", use_container_width=True)
+        # -----------------------
+        # 2. Product-wise Average Prediction Error (Line Chart)
+        # -----------------------
+        df['Abs_Error'] = np.abs(df['Actual'] - df['Predicted'])
+        df_prod_error = df.groupby('Product_ID')['Abs_Error'].mean().reset_index().sort_values('Abs_Error', ascending=False)
+        fig_prod_error = go.Figure()
+        fig_prod_error.add_trace(go.Scatter(
+            x=df_prod_error['Product_ID'], y=df_prod_error['Abs_Error'], mode='lines+markers',
+            line=dict(color='orange', width=3), marker=dict(size=6)
+        ))
+        fig_prod_error.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis_title="Product ID",
+            yaxis_title="Avg Prediction Error",
+            xaxis_tickangle=-45
+        )
+        st.markdown("<div class='glass'><strong>Product-wise Average Prediction Error</strong></div>", unsafe_allow_html=True)
+        st.plotly_chart(fig_prod_error, use_container_width=True)
