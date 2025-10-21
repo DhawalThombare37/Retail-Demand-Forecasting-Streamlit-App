@@ -2,9 +2,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import tensorflow as tf
-from sklearn.metrics import mean_absolute_percentage_error
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -14,7 +11,7 @@ from datetime import datetime
 st.set_page_config(page_title="Retail Demand Forecasting — Glassmorphic", layout="wide", page_icon="🛒")
 
 # -----------------------
-# Custom CSS (Enhanced Glassmorphism + Animated Background)
+# Custom CSS (Glassmorphism + Animated Background)
 # -----------------------
 st.markdown("""
 <style>
@@ -27,7 +24,6 @@ st.markdown("""
     --glass-blur: 14px;
 }
 
-/* Page background with animated glow circles */
 .stApp {
     background: radial-gradient(1200px 500px at 15% 15%, rgba(30,144,255,0.14), transparent 15%),
                 radial-gradient(1000px 400px at 80% 80%, rgba(142,68,173,0.12), transparent 15%),
@@ -36,11 +32,9 @@ st.markdown("""
     color: #e9eef8;
     font-family: 'Inter', sans-serif;
     min-height: 100vh;
-    position: relative;
     overflow-x: hidden;
 }
 
-/* Glass cards */
 .glass {
     background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
     border-radius: 18px;
@@ -57,7 +51,6 @@ st.markdown("""
     box-shadow: 0 18px 48px rgba(2,6,23,0.75);
 }
 
-/* Metrics cards vibrant + glowing */
 .metric {
     padding:20px;
     border-radius:16px;
@@ -73,10 +66,8 @@ st.markdown("""
 .metric .label { color: var(--muted); font-size:0.95rem; font-weight:600; }
 .metric .value { font-weight:700; font-size:1.6rem; margin-top:6px; color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.3); }
 
-/* Headings */
 h2, h3 { color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.4); }
 
-/* File uploader */
 .uploader {
     border: 1px dashed rgba(255,255,255,0.08);
     border-radius:14px;
@@ -90,13 +81,6 @@ h2, h3 { color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.4); }
     transform: translateY(-4px);
 }
 
-/* Table */
-.stDataFrame table {
-    border-radius:12px !important;
-    overflow:hidden;
-}
-
-/* Animated floating plot glow wrapper */
 .plot-glow {
     position: relative;
 }
@@ -122,7 +106,6 @@ h2, h3 { color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.4); }
     animation: float2 15s ease-in-out infinite alternate;
     z-index:-1;
 }
-
 @keyframes float {
     0% {transform: translateY(0px) translateX(0px);}
     50% {transform: translateY(40px) translateX(20px);}
@@ -140,55 +123,72 @@ h2, h3 { color:#ffffff; text-shadow:0 1px 6px rgba(0,0,0,0.4); }
 # Header
 # -----------------------
 st.markdown("<h2>🛒 Retail Demand Forecasting</h2>", unsafe_allow_html=True)
-st.markdown("<p style='color:rgba(255,255,255,0.75)'>Upload CSV containing: Date, Store ID, Product ID, Demand Forecast (Actual)</p>", unsafe_allow_html=True)
+st.markdown("<p style='color:rgba(255,255,255,0.75)'>Upload CSV containing: Date, Store ID, Product ID, Demand Forecast (Actual), Predicted_Demand (optional)</p>", unsafe_allow_html=True)
 
 # -----------------------
 # File uploader
 # -----------------------
 uploaded_file = st.file_uploader("Upload your CSV here", type=["csv"])
+
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+    # Ensure Predicted_Demand column exists
+    if 'Predicted_Demand' not in df.columns:
+        st.warning("⚠️ 'Predicted_Demand' column not found. Only actual demand will be shown.")
+        df['Predicted_Demand'] = np.nan
 
     # -----------------------
-    # Show metrics in vibrant glass cards
+    # Metrics cards
     # -----------------------
     total_rows = df.shape[0]
-    total_stores = df['Store ID'].nunique()
-    total_products = df['Product ID'].nunique()
-    mape = np.mean(np.abs((df['Demand Forecast'] - df['Predicted_Demand'])/(df['Demand Forecast']+1e-8)))*100 if 'Predicted_Demand' in df.columns else 0
-    
+    total_stores = df['Store ID'].nunique() if 'Store ID' in df.columns else 0
+    total_products = df['Product ID'].nunique() if 'Product ID' in df.columns else 0
+    mape = np.mean(np.abs((df['Demand Forecast'] - df['Predicted_Demand'])/(df['Demand Forecast']+1e-8)))*100 if df['Predicted_Demand'].notna().any() else 0
+
     col1, col2, col3, col4 = st.columns(4)
     col1.markdown(f"<div class='metric'><div class='label'>Total Rows</div><div class='value'>{total_rows:,}</div></div>", unsafe_allow_html=True)
     col2.markdown(f"<div class='metric'><div class='label'>Stores</div><div class='value'>{total_stores}</div></div>", unsafe_allow_html=True)
     col3.markdown(f"<div class='metric'><div class='label'>Products</div><div class='value'>{total_products}</div></div>", unsafe_allow_html=True)
     col4.markdown(f"<div class='metric'><div class='label'>MAPE</div><div class='value'>{mape:.2f}%</div></div>", unsafe_allow_html=True)
-    
     st.markdown("<br/>", unsafe_allow_html=True)
 
     # -----------------------
-    # Visualization 1: Actual vs Predicted (Line Chart)
+    # Visualization 1: Actual vs Predicted
     # -----------------------
     st.markdown("<div class='glass plot-glow'><h3>Actual vs Predicted Demand</h3></div>", unsafe_allow_html=True)
     fig1 = go.Figure()
-    agg = df.groupby('Date')[['Demand Forecast','Predicted_Demand']].sum().reset_index()
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
-                              name='Actual', line=dict(color='cyan', width=3), marker=dict(size=6)))
-    fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
-                              name='Predicted', line=dict(color='magenta', width=3, dash='dash'), marker=dict(size=6)))
+
+    if df['Predicted_Demand'].notna().any():
+        agg = df.groupby('Date')[['Demand Forecast', 'Predicted_Demand']].sum().reset_index()
+        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
+                                  name='Actual', line=dict(color='cyan', width=3), marker=dict(size=6)))
+        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Predicted_Demand'], mode='lines+markers',
+                                  name='Predicted', line=dict(color='magenta', width=3, dash='dash'), marker=dict(size=6)))
+    else:
+        agg = df.groupby('Date')[['Demand Forecast']].sum().reset_index()
+        fig1.add_trace(go.Scatter(x=agg['Date'], y=agg['Demand Forecast'], mode='lines+markers',
+                                  name='Actual Demand', line=dict(color='cyan', width=3), marker=dict(size=6)))
+        st.warning("⚠️ 'Predicted_Demand' column missing — only Actual Demand is displayed.")
+
     fig1.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                        legend=dict(bgcolor='rgba(255,255,255,0.03)'))
     st.plotly_chart(fig1, use_container_width=True)
 
     # -----------------------
-    # Visualization 2: Product-wise Avg Prediction Error
+    # Visualization 2: Product-wise Error (only if predictions exist)
     # -----------------------
-    st.markdown("<div class='glass plot-glow'><h3>Product-wise Average Prediction Error</h3></div>", unsafe_allow_html=True)
-    df['Abs_Error'] = abs(df['Demand Forecast'] - df['Predicted_Demand'])
-    prod_err = df.groupby('Product ID')['Abs_Error'].mean().reset_index().sort_values('Abs_Error',ascending=False)
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=prod_err['Product ID'], y=prod_err['Abs_Error'], mode='lines+markers',
-                              line=dict(color='orange', width=3), marker=dict(size=6)))
-    fig2.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                       xaxis_tickangle=-45)
-    st.plotly_chart(fig2, use_container_width=True)
+    if df['Predicted_Demand'].notna().any():
+        st.markdown("<div class='glass plot-glow'><h3>Product-wise Average Prediction Error</h3></div>", unsafe_allow_html=True)
+        df['Abs_Error'] = abs(df['Demand Forecast'] - df['Predicted_Demand'])
+        prod_err = df.groupby('Product ID', dropna=True)['Abs_Error'].mean().reset_index().sort_values('Abs_Error', ascending=False)
+
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=prod_err['Product ID'], y=prod_err['Abs_Error'], mode='lines+markers',
+                                  line=dict(color='orange', width=3), marker=dict(size=6)))
+        fig2.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                           xaxis_tickangle=-45)
+        st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.info("ℹ️ Prediction Error chart unavailable — no 'Predicted_Demand' column found.")
