@@ -3,149 +3,124 @@ import pandas as pd
 import numpy as np
 import joblib
 import tensorflow as tf
+import plotly.express as px
 from sklearn.metrics import mean_absolute_percentage_error
-import matplotlib.pyplot as plt
 
-# =================== PAGE CONFIG ===================
-st.set_page_config(page_title="Retail Demand Forecasting", layout="wide")
+# ---------------------------- APP CONFIG ----------------------------
+st.set_page_config(
+    page_title="Retail Demand Forecasting",
+    layout="wide",
+    page_icon="🛒",
+    initial_sidebar_state="expanded"
+)
 
-# =================== CYBER-NEON STYLE ===================
+# ---------------------------- CUSTOM CSS ----------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Inter:wght@400;600&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Sora', sans-serif;
-    background: radial-gradient(circle at 30% 10%, #050512 0%, #000010 100%);
-    color: #E5E9FF;
-    overflow-x: hidden;
+/* Global */
+body {
+    font-family: 'Poppins', sans-serif;
 }
 
-/* --- Glowing header pulse --- */
-.header-title {
-    font-size: 2.4rem;
+/* Header */
+.main-title {
+    font-size: 2.2rem;
     font-weight: 700;
-    color: #00E6FF;
-    text-align: center;
-    text-shadow: 0 0 12px rgba(0,230,255,0.8), 0 0 24px rgba(255,0,255,0.4);
-    animation: pulse 3s ease-in-out infinite;
-    margin-top: 20px;
-}
-@keyframes pulse {
-    0% { text-shadow: 0 0 10px rgba(0,230,255,0.8), 0 0 30px rgba(255,0,255,0.4); }
-    50% { text-shadow: 0 0 25px rgba(0,230,255,1), 0 0 55px rgba(255,0,255,0.6); }
-    100% { text-shadow: 0 0 10px rgba(0,230,255,0.8), 0 0 30px rgba(255,0,255,0.4); }
+    color: #2E86DE;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
 }
 
-/* --- Neon underline shimmer --- */
-.header-underline {
-    width: 220px;
-    height: 3px;
-    margin: 0 auto 25px auto;
-    background: linear-gradient(90deg, #00E6FF, #FF00FF, #00E6FF);
-    background-size: 300% 100%;
-    border-radius: 3px;
-    animation: shimmer 4s linear infinite;
-}
-@keyframes shimmer {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 100% 50%; }
-}
-
-/* --- Metric cards --- */
-.metric {
-    padding: 22px;
-    border-radius: 14px;
-    transition: all 0.25s ease;
-    border: 1px solid rgba(0,255,255,0.1);
-    background: linear-gradient(135deg, rgba(0,255,255,0.08), rgba(255,0,255,0.08));
-    box-shadow: 0 0 22px rgba(0,255,255,0.15);
-    text-align: center;
+.sub-title {
+    color: #7f8c8d;
+    font-size: 1.1rem;
     margin-bottom: 25px;
 }
-.metric:hover {
-    transform: translateY(-6px) scale(1.03);
-    box-shadow: 0 0 35px rgba(0,255,255,0.35), 0 0 20px rgba(255,0,255,0.25);
-}
-.metric .label { color: rgba(255,255,255,0.75); font-size: 0.9rem; }
-.metric .value { font-weight: 700; font-size: 1.6rem; margin-top: 6px; color: #00E6FF; }
 
-/* --- File uploader --- */
-.uploader {
-    border: 1px dashed rgba(0,255,255,0.2);
-    border-radius: 14px;
-    padding: 24px;
-    text-align: center;
-    color: #E5E9FF;
-    transition: all 0.25s;
-    background: linear-gradient(145deg, rgba(0,255,255,0.06), rgba(255,0,255,0.05));
-    margin-bottom: 35px;
+/* Card Styling */
+.metric-card {
+    background: linear-gradient(145deg, #f2f4f7, #ffffff);
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    padding: 20px;
+    transition: all 0.2s ease;
 }
-.uploader:hover {
-    background: linear-gradient(145deg, rgba(0,255,255,0.12), rgba(255,0,255,0.1));
+.metric-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 0 18px rgba(0,255,255,0.25);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
 }
-.uploader strong { color: #00E6FF; font-weight: 700; }
 
-/* --- Badge --- */
-.badge {
-    display: inline-block;
-    padding: 8px 16px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(0,255,255,0.25), rgba(255,0,255,0.25));
-    border: 1px solid rgba(0,255,255,0.1);
+/* Upload box */
+.stFileUploader {
+    border: 2px dashed #90CAF9 !important;
+    border-radius: 15px !important;
+    background: rgba(144,202,249,0.1) !important;
+    padding: 2rem !important;
+}
+.stFileUploader:hover {
+    background: rgba(144,202,249,0.15) !important;
+}
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(135deg, #74b9ff, #0984e3);
     color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 0.6rem 1.4rem;
+    font-size: 1rem;
     font-weight: 600;
-    font-size: 0.95rem;
-    box-shadow: 0 0 18px rgba(0,255,255,0.25);
-    backdrop-filter: blur(6px);
-    margin-bottom: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: 0.3s ease;
+}
+.stButton>button:hover {
+    background: linear-gradient(135deg, #0984e3, #74b9ff);
+    transform: translateY(-2px);
 }
 
-/* --- Chart layout --- */
+/* Tables */
+.dataframe {
+    border-radius: 10px !important;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+/* Chart Area */
 .chart-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 50px;
-    margin-top: 50px;
-}
-
-/* --- Background neon glows --- */
-.glow {
-    position: fixed;
-    width: 500px;
-    height: 500px;
-    filter: blur(100px);
-    z-index: -1;
-    opacity: 0.35;
-}
-.glow.cyan { background: radial-gradient(circle, rgba(0,255,255,0.6), transparent 70%); top: -150px; left: -150px; }
-.glow.pink { background: radial-gradient(circle, rgba(255,0,255,0.5), transparent 70%); bottom: -150px; right: -150px; }
-
-@media (max-width: 900px) {
-    .metric .value { font-size: 1.2rem; }
+    background: linear-gradient(145deg, #fafbfc, #ffffff);
+    border-radius: 18px;
+    padding: 25px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.07);
+    margin-bottom: 30px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Background glows
-st.markdown("<div class='glow cyan'></div><div class='glow pink'></div>", unsafe_allow_html=True)
+# ---------------------------- HEADER ----------------------------
+st.markdown("<div class='main-title'>🛒 Retail Demand Forecasting</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Transformer + XGBoost Ensemble | Expected MAPE: ~3%</div>", unsafe_allow_html=True)
 
-# =================== HEADER ===================
-st.markdown("<div class='badge'>🛒 Transformer + XGBoost Ensemble</div>", unsafe_allow_html=True)
-st.markdown("<div class='header-title'>Retail Demand Forecasting</div>", unsafe_allow_html=True)
-st.markdown("<div class='header-underline'></div>", unsafe_allow_html=True)
-st.caption("Modern cyber-neon interface for intelligent retail forecasting (Expected MAPE ≈ 3 %)")
-
-# =================== FILE UPLOAD ===================
-st.markdown("<div class='uploader'><strong>Upload your retail_store_inventory.csv</strong><br><span style='opacity:0.8;'>The model will predict demand for the last 3 months of data</span></div>", unsafe_allow_html=True)
-uploaded = st.file_uploader("", type=["csv"])
-
-# =================== LOAD MODELS ===================
+# ---------------------------- MODEL LOADING ----------------------------
 @st.cache_resource
 def load_models():
+    import os
+    st.info("🔍 Checking for model files...")
+
+    required_files = {
+        'transformer_model.keras': 'Transformer Model',
+        'xgb_model.pkl': 'XGBoost Model',
+        'scaler.pkl': 'Scaler',
+        'training_columns.pkl': 'Training Columns',
+        'xgb_columns.pkl': 'XGBoost Columns',
+        'sequence_length.pkl': 'Sequence Length'
+    }
+
+    missing_files = []
+    for file, name in required_files.items():
+        if not os.path.exists(file):
+            st.error(f"❌ {name}: {file} not found")
+            missing_files.append(file)
+    if missing_files:
+        st.stop()
+
     transformer = tf.keras.models.load_model("transformer_model.keras")
     xgb = joblib.load("xgb_model.pkl")
     scaler = joblib.load("scaler.pkl")
@@ -154,13 +129,9 @@ def load_models():
     seq_len = joblib.load("sequence_length.pkl")
     return transformer, xgb, scaler, training_cols, xgb_cols, seq_len
 
-try:
-    transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
-except Exception as e:
-    st.error("⚠️ Model files missing or corrupted. Please ensure all model assets are uploaded correctly.")
-    st.stop()
+transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
 
-# =================== PREDICTOR CLASS ===================
+# ---------------------------- PREDICTOR CLASS ----------------------------
 class Predictor:
     def __init__(self, transformer, xgb, scaler, train_cols, xgb_cols, seq_len):
         self.transformer = transformer
@@ -174,15 +145,27 @@ class Predictor:
         df = df.copy()
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values(by='Date').reset_index(drop=True)
+
         df['year'] = df['Date'].dt.year
         df['month'] = df['Date'].dt.month
         df['day'] = df['Date'].dt.day
         df['dayofweek'] = df['Date'].dt.dayofweek
         df['weekofyear'] = df['Date'].dt.isocalendar().week.astype(int)
+
+        lag_period = 7
+        for col in ['Inventory Level', 'Units Sold', 'Units Ordered', 'Demand Forecast', 'Price']:
+            df[f'{col}_lag_{lag_period}'] = df.groupby(['Store ID', 'Product ID'])[col].shift(lag_period)
+
+        rolling_window = 7
+        for col in ['Inventory Level', 'Units Sold', 'Units Ordered', 'Demand Forecast', 'Price']:
+            df[f'{col}_rolling_mean_{rolling_window}'] = df.groupby(['Store ID', 'Product ID'])[col].rolling(window=rolling_window).mean().reset_index(drop=True)
+            df[f'{col}_rolling_std_{rolling_window}'] = df.groupby(['Store ID', 'Product ID'])[col].rolling(window=rolling_window).std().reset_index(drop=True)
+
         df = df.fillna(0)
-        features = [col for col in df.columns if col not in ['Date','Demand Forecast']]
+        features = [col for col in df.columns if col not in ['Date','Demand Forecast','Store ID','Product ID','Category','Region','Weather Condition','Seasonality']]
         X = df[features]
         y = df['Demand Forecast']
+        X = pd.get_dummies(X, columns=['Discount','Holiday/Promotion'])
         return X, y, df
 
     def create_sequences(self, X, y):
@@ -193,61 +176,106 @@ class Predictor:
         return np.array(X_seq), np.array(y_seq)
 
     def predict(self, df_input):
+        test_date = pd.to_datetime(df_input['Date']).max() - pd.DateOffset(months=3)
         X, y, df_orig = self.preprocess(df_input)
+        df_orig['Date'] = pd.to_datetime(df_orig['Date'])
+        test_mask = df_orig['Date'] > test_date
+        X = X[test_mask].reset_index(drop=True)
+        y = y[test_mask].reset_index(drop=True)
+        df_orig = df_orig[test_mask].reset_index(drop=True)
+        for col in self.training_columns:
+            if col not in X.columns:
+                X[col] = 0
+        X = X[self.training_columns]
         X_scaled = self.scaler.transform(X)
         X_seq, y_seq = self.create_sequences(X_scaled, y.values)
+        if len(X_seq) == 0:
+            st.error("Not enough rows for sequence creation")
+            return None, None
         trans_preds = self.transformer.predict(X_seq, verbose=0)
         X_aligned = X.iloc[self.sequence_length:].copy()
         y_aligned = y.values[self.sequence_length:].copy()
+        df_aligned = df_orig.iloc[self.sequence_length:].copy()
         X_aligned['transformer_predictions_scaled'] = trans_preds.flatten()
-        X_aligned = X_aligned.reindex(columns=self.xgb_columns, fill_value=0)
+        for col in self.xgb_columns:
+            if col not in X_aligned.columns:
+                X_aligned[col] = 0
+        X_aligned = X_aligned[self.xgb_columns]
         final_preds = self.xgb.predict(X_aligned)
-        df_results = df_orig.iloc[self.sequence_length:].copy()
+        df_results = df_aligned.reset_index(drop=True).copy()
         df_results['Predicted_Demand'] = final_preds
-        mape = mean_absolute_percentage_error(y_aligned + 1e-8, final_preds) * 100
+        epsilon = 1e-8
+        y_safe = y_aligned.copy()
+        y_safe[y_safe == 0] = epsilon
+        mape = mean_absolute_percentage_error(y_safe, final_preds) * 100
         return df_results, mape
 
-# =================== APP LOGIC ===================
+# ---------------------------- FILE UPLOAD ----------------------------
+st.markdown("### 📂 Upload Retail Data")
+uploaded = st.file_uploader("Upload a CSV file (retail_store_inventory.csv)", type=["csv"])
+
 if uploaded:
     df = pd.read_csv(uploaded)
-    st.dataframe(df.head(10), use_container_width=True)
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📊 Total Rows", f"{len(df):,}")
+    with col2:
+        st.metric("🏬 Stores", df['Store ID'].nunique())
+    with col3:
+        st.metric("📦 Products", df['Product ID'].nunique())
+
+    test_date = df['Date'].max() - pd.DateOffset(months=3)
+    st.info(f"Predicting for last 3 months: from {test_date.date()} onwards")
+
     predictor = Predictor(transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length)
-    with st.spinner("⚙️ Running Forecast..."):
+    with st.spinner("⚙️ Generating predictions..."):
         results, mape = predictor.predict(df)
 
     if results is not None:
+        st.markdown("---")
+        st.subheader("🎯 Prediction Summary")
+
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"<div class='metric'><div class='label'>MAPE</div><div class='value'>{mape:.2f}%</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card'><h3>MAPE</h3><h2 style='color:#0984e3;'>{mape:.2f}%</h2></div>", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"<div class='metric'><div class='label'>Predictions</div><div class='value'>{len(results):,}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card'><h3>Predictions</h3><h2>{len(results):,}</h2></div>", unsafe_allow_html=True)
         with col3:
-            st.markdown(f"<div class='metric'><div class='label'>Accuracy</div><div class='value'>{100 - mape:.2f}%</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card'><h3>Accuracy</h3><h2 style='color:#00b894;'>{max(0,100-mape):.2f}%</h2></div>", unsafe_allow_html=True)
 
-        # === Charts Section ===
-        st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
-        fig1, ax1 = plt.subplots(figsize=(10, 4))
-        ax1.plot(results['Date'], results['Demand Forecast'], label='Actual', color='#00E6FF', linewidth=2.2)
-        ax1.plot(results['Date'], results['Predicted_Demand'], label='Predicted', color='#FF00FF', linewidth=2.2, linestyle='--')
-        ax1.legend(facecolor='none', edgecolor='white', labelcolor='white')
-        ax1.set_title("Actual vs Predicted Demand", color='white', fontsize=13, weight='bold')
-        ax1.set_facecolor('none')
-        for spine in ax1.spines.values(): spine.set_visible(False)
-        fig1.patch.set_alpha(0)
-        st.pyplot(fig1)
+        # ---------------------------- VISUALIZATIONS ----------------------------
+        st.markdown("### 📈 Visualization Dashboard")
 
-        fig2, ax2 = plt.subplots(figsize=(10, 4))
-        errors = results['Demand Forecast'] - results['Predicted_Demand']
-        ax2.hist(errors, bins=20, color='#00E6FF', alpha=0.8)
-        ax2.set_title("Error Distribution", color='white', fontsize=13, weight='bold')
-        ax2.set_facecolor('none')
-        fig2.patch.set_alpha(0)
-        for spine in ax2.spines.values(): spine.set_visible(False)
-        st.pyplot(fig2)
-        st.markdown("</div>", unsafe_allow_html=True)
+        chart_col1, chart_col2 = st.columns(2)
+        with chart_col1:
+            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
+            fig1 = px.line(results, x='Date', y=['Demand Forecast','Predicted_Demand'],
+                           labels={'value':'Demand','variable':'Legend'},
+                           title="📊 Actual vs Predicted Demand Over Time")
+            fig1.update_layout(hovermode='x unified', template='plotly_white', title_font=dict(size=18))
+            st.plotly_chart(fig1, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
+        with chart_col2:
+            results['Error_%'] = abs(results['Demand Forecast'] - results['Predicted_Demand']) / (results['Demand Forecast'] + 1e-8) * 100
+            top_errors = results.groupby('Product ID')['Error_%'].mean().nlargest(10).reset_index()
+            st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
+            fig2 = px.bar(top_errors, x='Product ID', y='Error_%', title="🔥 Top 10 Products with Highest Prediction Error",
+                          color='Error_%', color_continuous_scale='Reds')
+            fig2.update_layout(template='plotly_white', title_font=dict(size=18))
+            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ---------------------------- DATA TABLE ----------------------------
+        st.markdown("### 📋 Detailed Results")
+        display = results[['Date','Store ID','Product ID','Demand Forecast','Predicted_Demand']].copy()
+        display['Error_%'] = (abs(display['Demand Forecast'] - display['Predicted_Demand']) / (display['Demand Forecast'] + 1e-8) * 100).round(2)
+        st.dataframe(display.head(100), use_container_width=True)
+
+        # ---------------------------- DOWNLOAD ----------------------------
         csv = results.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Download Predictions", csv, "predictions.csv", use_container_width=True)
-
+        st.download_button("⬇️ Download Full Predictions", csv, "predictions.csv", use_container_width=True)
 else:
-    st.info("👆 Upload CSV to start predictions")
+    st.info("👆 Upload a CSV to start predictions")
