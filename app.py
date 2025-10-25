@@ -156,12 +156,12 @@ st.markdown("<p style='color:rgba(255,255,255,0.75)'>Upload CSV containing: Date
 # -----------------------
 @st.cache_resource
 def load_models():
-    transformer = tf.keras.models.load_model("transformer_model.keras")
-    xgb = joblib.load("xgb_model.pkl")
-    scaler = joblib.load("scaler.pkl")
-    training_cols = joblib.load("training_columns.pkl")
-    xgb_cols = joblib.load("xgb_columns.pkl")
-    seq_len = joblib.load("sequence_length.pkl")
+    transformer = tf.keras.models.load_model("models/transformer_model.keras")
+    xgb = joblib.load("models/xgb_model.pkl")
+    scaler = joblib.load("models/scaler.pkl")
+    training_cols = joblib.load("models/training_columns.pkl")
+    xgb_cols = joblib.load("models/xgb_columns.pkl")
+    seq_len = joblib.load("models/sequence_length.pkl")
     return transformer, xgb, scaler, training_cols, xgb_cols, seq_len
 
 transformer_model, xgb_model, scaler, training_columns, xgb_columns, sequence_length = load_models()
