@@ -69,20 +69,20 @@ retail-demand-forecasting/
 ```bash
 git clone https://github.com/DhawalThombare37/Retail-Demand-Forecasting-Streamlit-App.git
 cd Retail-Demand-Forecasting-Streamlit-App
-
+```
 ### 2️⃣ Create and Activate Virtual Environment
 ```bash
 python -m venv venv
 source venv/bin/activate     # On Windows: venv\Scripts\activate
-
+```
 ### 3️⃣ Install Dependencies
 ```bash
 pip install -r requirements.txt
-
+```
 ### 4️⃣ Run the App
 ```bash
 streamlit run app.py
-
+```
 ---
 ## 📈 Output
 
