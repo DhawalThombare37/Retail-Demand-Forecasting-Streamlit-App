@@ -1,0 +1,91 @@
+# ========================================
+# Python Cache and Logs
+# ========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.joblib
+*.log
+*.out
+*.tmp
+
+# ========================================
+# Data Files
+# ========================================
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.json
+*.zip
+*.tar
+*.gz
+data/
+datasets/
+raw_data/
+processed_data/
+tmp/
+
+# ========================================
+# Model Files
+# ========================================
+*.h5
+*.hdf5
+*.sav
+*.tflite
+*.pb
+*.onnx
+models/
+checkpoints/
+transformer_model/
+xgb_model/
+scaler.pkl
+test_indices.pkl
+
+# ========================================
+# Streamlit and Environment Files
+# ========================================
+.streamlit/
+.secrets.toml
+.env
+*.db
+*.sqlite3
+venv/
+env/
+venv*/
+ENV*/
+.idea/
+.vscode/
+
+# ========================================
+# Jupyter & Colab
+# ========================================
+.ipynb_checkpoints/
+*.ipynb
+*.ipynb_meta
+*.ipynb.json
+
+# ========================================
+# OS Specific Files
+# ========================================
+.DS_Store
+Thumbs.db
+
+# ========================================
+# Build/Distribution Files
+# ========================================
+build/
+dist/
+*.egg-info/
+*.manifest
+*.spec
+
+# ========================================
+# Node / Frontend (if any future additions)
+# ========================================
+node_modules/
+package-lock.json
+npm-debug.log
+yarn.lock
