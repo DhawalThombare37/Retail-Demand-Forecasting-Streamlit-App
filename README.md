@@ -28,6 +28,7 @@ Designed for data-driven retail management, it empowers users to:
 
 ## 🗂️ Project Structure  
 
+```
 retail-demand-forecasting/
 │
 ├─ README.md                # Main documentation
@@ -46,6 +47,7 @@ retail-demand-forecasting/
 │   └─ preprocessing.py
 └─ notebooks/               # Optional, exploratory notebooks / Colab links
     └─ model_training.ipynb
+```
 
 
 
